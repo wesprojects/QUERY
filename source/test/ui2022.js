@@ -30,6 +30,13 @@ const { chromium } = require('playwright');
   ck(`the specification lists the Sarto screen ${style} and 36"H end-of-run junctions TS736TEPJ (2022 p355, p402)`, spec.includes(style) && spec.includes('TS736TEPJ'), spec.slice(0, 200));
   const link = await pg.evaluate(() => { const a = document.querySelector('#specBody a.pg'); return a ? a.getAttribute('href') : null; });
   ck('guide page links open the June 2022 book', !!link && /^answer-2022-[12]\.pdf#page=\d+/.test(link), link);
-  const price = await pg.textContent('#specBody').then(t => /June 2022/.test(t) || true);
+  // the QUERY rename: the header, a saved job named .query, and an old .answer job still opening
+  ck('the app is titled QUERY Panel Planner', (await pg.title()) === 'QUERY Panel Planner' && /QUERY Panel Planner/.test(await pg.textContent('h1')));
+  await pg.click('[data-stage="plan"]').catch(() => {}); await pg.waitForTimeout(200);
+  const [dl] = await Promise.all([pg.waitForEvent('download'), pg.click('#bSave')]); const saved = require('fs').readFileSync(await dl.path(), 'utf8');
+  ck('Save writes a .query job file', /\.query$/.test(dl.suggestedFilename()) && JSON.parse(saved).app === 'QUERY', dl.suggestedFilename());
+  const old = JSON.parse(saved); old.app = 'ANSWER'; old.name = 'Legacy job';
+  await pg.setInputFiles('#fileIn', { name: 'legacy.answer', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(old)) }); await pg.waitForTimeout(400);
+  ck('an old .answer job file still opens', await pg.evaluate(() => window.answerDebug.P().name === 'Legacy job' && window.answerDebug.P().app === 'QUERY'));
   console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
   console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); await b.close(); })();

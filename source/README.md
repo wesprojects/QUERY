@@ -1,18 +1,22 @@
-# ANSWER PANEL PLANNER
+# QUERY PANEL PLANNER
 
 CONKLIN OFFICE FURNITURE - RESEARCH AND DEVELOPMENT
 
-# ANSWER PANEL PLANNER
+# QUERY PANEL PLANNER
 
 Plan, specify, build and install Steelcase Answer panel systems, Thin trim first and Oval trim second, from one job file. Draw panel runs on a plan or drop in typicals, set height, stacking, tiles, windows, power and frameless glass per panel, then right-click to add Universal worksurfaces, corner worksurfaces and fixed or mobile pedestals that snap to the panels. Every shared junction, trim, cap, aligner, cantilever, side support bracket, end panel, reinforcing channel, pedestal filler and package is resolved to the exact style number from the February 2015 Answer Solutions Specification Guide. Four stages carry the job from the office to the shop floor: Plan, Specification (buy new, refurbish or stock per line, with package contents spelled out), Shop (upholstery and paint work orders, junction build sheets, field cuts) and Pick & Install (pick list with bins, staging by workstation, installer sheets with plan, elevations and junction-by-junction parts). The specification exports as a SIF file for CAP Worksheet, ProjectSpec and dealer ordering systems, with every finish written as an option pair.
 
 Every reference to the Answer Specification Guide opens that page of the PDF.
 
-<span style="color:grey">OUTPUT IN .ANSWER JOB, SIF, CSV, PRINTABLE SPEC / WORK ORDER / PICK LIST / INSTALLER SHEET FORMAT</span>
+<span style="color:grey">OUTPUT IN .QUERY JOB, SIF, CSV, PRINTABLE SPEC / WORK ORDER / PICK LIST / INSTALLER SHEET FORMAT</span>
 
-LAUNCH — https://wesprojects.github.io/ANSWER/
+LAUNCH — https://wesprojects.github.io/QUERY/
 
-README — https://github.com/wesprojects/ANSWER
+README — https://github.com/wesprojects/QUERY
+
+## The name (September 26, 2026)
+
+The planner was called the Answer Panel Planner; it is now **QUERY** (repository `wesprojects/QUERY`, site `wesprojects.github.io/QUERY`), so the tool no longer carries Steelcase's product name. It still plans Steelcase Answer systems, and "Answer" is used where the product is meant. Job files save as `.query`; `.answer` files from before the rename still open. The in-progress job the browser keeps carries over: the old and new addresses are the same site (`wesprojects.github.io`) and the storage key is unchanged. The old address `wesprojects.github.io/ANSWER/` redirects to the new one, page links included.
 
 ## Files
 

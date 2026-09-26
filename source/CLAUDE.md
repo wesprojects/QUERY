@@ -1,6 +1,6 @@
-# ANSWER PANEL PLANNER — working rules for Claude Code
+# QUERY PANEL PLANNER (formerly ANSWER) — working rules for Claude Code
 
-Single-file web app (`dist/index.html`, published as `index.html` on GitHub Pages from `main` of wesprojects/ANSWER) that plans, specifies,
+Single-file web app (`dist/index.html`, published as `index.html` on GitHub Pages from `main` of wesprojects/QUERY, site wesprojects.github.io/QUERY; renamed from ANSWER on 2026-09-26) that plans, specifies,
 builds and installs Steelcase Answer panel systems from the **June 2022 Answer Solutions Specification Guide** (the source since 2026-09-25; the
 February 2015 guide it replaced is kept for the citations still marked "2015 pNN"). Space planners use it live.
 
@@ -59,7 +59,7 @@ pymupdf; the full `answer-2022.pdf` stays out of git). The 2015 text is `guide/p
 4. Commit the source (`source/` is part of this repo now; `dist/`, caches and test output stay ignored) with a clear message.
    Copy `dist/index.html` and `README.md` (and this file) into the repo checkout, commit, push to
    `claude/dazzling-gauss-0nzo38`, fast-forward `main` (`git checkout main && git merge --ff-only claude/dazzling-gauss-0nzo38 && git push`), so it goes live.
-5. Zip the source (everything but `.git`, `__pycache__`, `test/overlap`, `test/capout`, `dist/*.pdf`, PNGs, `test/run_*.log`) to `Downloads\ANSWER\ANSWER_source.zip`.
+5. Zip the source (everything but `.git`, `__pycache__`, `test/overlap`, `test/capout`, `dist/*.pdf`, PNGs, `test/run_*.log`) to `Downloads\QUERY\QUERY_source.zip`.
 6. Report plainly: what changed, what the tests showed, what is not done. No silent skips.
 
 ## Interface conventions the owner has set

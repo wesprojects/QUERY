@@ -213,7 +213,7 @@
   // ---------- project model ----------
   E.newProject = function (trim) {
     return {
-      app: 'ANSWER', version: 1, name: 'Untitled', trim: trim || 'thin',
+      app: 'QUERY', version: 1, name: 'Untitled', trim: trim || 'thin',
       nodes: {}, panels: {}, seq: 1,
       finishes: {
         trimPaint: { code: '7207', name: 'Black', group: 1 },      // junction trim / caps / top cap / base trim paint
@@ -1534,7 +1534,7 @@
     }
     const recs = [...map.values()];
     const L = [];
-    L.push('SF=' + E.sifText(opts.sf || 'Generic SIF;Answer Panel Planner'));
+    L.push('SF=' + E.sifText(opts.sf || 'Generic SIF;QUERY Panel Planner'));
     if (opts.title) L.push('ST=' + E.sifText(opts.title));
     for (const r of recs) {
       L.push('PN=' + E.sifText(r.style));
@@ -2327,7 +2327,7 @@
     // workstation names and title
     for (const c of E.workstations(P)) { if (!c.allNodes.length) continue; const xs = c.allNodes.map(i => P.nodes[i].x), ys = c.allNodes.map(i => P.nodes[i].y); text('A-TITLE', [Math.min(...xs), Math.max(...ys) + 8], 4, c.name, 0, false); }
     const allY = Object.values(P.nodes).map(n => n.y), allX = Object.values(P.nodes).map(n => n.x);
-    if (allX.length) text('A-TITLE', [Math.min(...allX), Math.min(...allY) - 60], 4, `${P.name || 'Untitled'}${P.job && P.job.number ? ' - Job ' + P.job.number : ''} - Steelcase Answer ${P.trim} trim - Answer Panel Planner ${opts.build || ''} - units inches - U.S. list $${Math.round(res.totals ? res.totals.all : 0)}`, 0, false);
+    if (allX.length) text('A-TITLE', [Math.min(...allX), Math.min(...allY) - 60], 4, `${P.name || 'Untitled'}${P.job && P.job.number ? ' - Job ' + P.job.number : ''} - Steelcase Answer ${P.trim} trim - QUERY Panel Planner ${opts.build || ''} - units inches - U.S. list $${Math.round(res.totals ? res.totals.all : 0)}`, 0, false);
     w(0, 'ENDSEC'); w(0, 'EOF');
     return out.join('\r\n') + '\r\n';
   };

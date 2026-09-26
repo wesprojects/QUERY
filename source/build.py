@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the single-file ANSWER app: dist/index.html. Build number = today's date (America/New_York) + counter."""
+"""Assemble the single-file QUERY app (formerly ANSWER): dist/index.html. Build number = today's date (America/New_York) + counter."""
 import os, json, datetime, re, sys
 from zoneinfo import ZoneInfo
 ROOT = os.path.dirname(os.path.abspath(__file__))

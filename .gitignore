@@ -7,3 +7,7 @@ answer-2022.pdf
 **/__pycache__/
 source/guide2022/*.png
 source/test/run_all.log
+# CAP catalog files are private: never commit (2026-09-26)
+*.cc4
+*.CC4
+**/CAP_PRIVATE/

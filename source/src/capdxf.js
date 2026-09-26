@@ -369,7 +369,7 @@
     if (rest.length) { addText({ t: 'text', layer: 'CAPTAG', p: [minX, y + 6], h: 3, s: 'JOB PARTS (packages, aligners, seals and other parts not tied to one place)' }); rest.forEach((l, i) => place(l, jobBlock(l.style), minX + 4 + (i % 20) * 9, y - 6 - Math.floor(i / 20) * 12, 0, l.style, {}, 'A-FURN')); y -= 12 * Math.ceil(rest.length / 20) + 12; }
     y -= 6; addText({ t: 'text', layer: 'CAPTAG', p: [minX, y], h: 3, s: 'PANEL CONFIGS' });
     for (const c of Object.values(configs)) { y -= 5; addText({ t: 'text', layer: 'CAPTAG', p: [minX, y], h: 2.4, s: c.id + ' ' + c.wd + ': ' + c.title }); }
-    y -= 8; addText({ t: 'text', layer: 'CAPTAG', p: [minX, y], h: 3, s: `${P.name || 'Untitled'} - Steelcase Answer ${P.trim} trim - Answer Panel Planner ${opts.build || ''} - inches - parts from the specification (CAPPN = style number)` });
+    y -= 8; addText({ t: 'text', layer: 'CAPTAG', p: [minX, y], h: 3, s: `${P.name || 'Untitled'} - Steelcase Answer ${P.trim} trim - QUERY Panel Planner ${opts.build || ''} - inches - parts from the specification (CAPPN = style number)` });
     for (const t of top) ext(t.x, t.y); for (const t of texts) ext(t.p[0], t.p[1]); ext(minX + 300, y);
     // ---------- write ----------
     w(0, 'SECTION'); w(2, 'HEADER'); w(9, '$ACADVER'); w(1, ver); out.push(CAPDXF_TPL.header);

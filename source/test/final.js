@@ -22,7 +22,7 @@ const ck = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     const panelPt = (pid, side) => pg.evaluate(([pid, side]) => { const P = window.answerDebug.P(); const p = P.panels[pid]; const a = P.nodes[p.a], c = P.nodes[p.b]; const n = window.ANSWER.sideNormal(P, p, side); return [(a.x + c.x) / 2 + n[0] * 3, (a.y + c.y) / 2 + n[1] * 3]; }, [pid, side]).then(([x, y]) => scr(x, y));
     const wsPt = (wid) => pg.evaluate((wid) => { const P = window.answerDebug.P(); const w = P.worksurfaces[wid]; const g = window.ANSWER.wsGeometry(P, w); if (g.kind === 'straight') return [g.lo[0] + g.dir[0] * w.width * 0.5 + g.n[0] * g.depth * 0.8, g.lo[1] + g.dir[1] * w.width * 0.5 + g.n[1] * g.depth * 0.8]; const a = g.arms[0]; return [a.end[0] - a.dir[0] * 20 + a.n[0] * 8, a.end[1] - a.dir[1] * 20 + a.n[1] * 8]; }, wid).then(([x, y]) => scr(x, y));
     const state = () => pg.evaluate(() => { const P = window.answerDebug.P(), R = window.ANSWER.generate(P); return { np: Object.keys(P.panels).length, nodes: JSON.stringify(P.nodes), ws: Object.keys(P.worksurfaces || {}).length, err: R.errors.map(e => e.msg), warn: R.warnings.map(e => e.msg) }; });
-    const load = async (json, name = 'job.answer') => { await pg.setInputFiles('#fileIn', { name, mimeType: 'application/json', buffer: Buffer.from(json) }); await pg.waitForTimeout(400); await pg.click('#zFit'); await pg.waitForTimeout(150); };
+    const load = async (json, name = 'job.query') => { await pg.setInputFiles('#fileIn', { name, mimeType: 'application/json', buffer: Buffer.from(json) }); await pg.waitForTimeout(400); await pg.click('#zFit'); await pg.waitForTimeout(150); };
     const place = async (name, x, y) => { await pg.click('#bTypicals'); await pg.waitForTimeout(150); await pg.click(`.typ:has-text(${JSON.stringify(name)})`); await pg.waitForTimeout(100); await clr(); await pg.mouse.click(...(await scr(x, y))); await pg.waitForTimeout(250); const t = await toast(); await pg.keyboard.press('Escape'); return t; };
     const hookPrint = () => pg.evaluate(() => { window.__prints = []; window.print = () => window.__prints.push(document.querySelector('#printArea').innerHTML); });
     const lastPrint = async () => { await pg.waitForTimeout(300); return pg.evaluate(() => window.__prints[window.__prints.length - 1] || ''); };
@@ -54,7 +54,7 @@ const ck = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     await ctxClose(T); }
 
   // ---- #2 workstations in a pod ----
-  { const T = await open(); const { pg } = T; await T.hookPrint(); await T.load(await podJSON(pg), 'pod.answer');
+  { const T = await open(); const { pg } = T; await T.hookPrint(); await T.load(await podJSON(pg), 'pod.query');
     let s = await T.state(); ck('#2 pod loads clean (no errors, no warnings)', !s.err.length && !s.warn.length, JSON.stringify([s.err, s.warn]));
     ck('#2 the pod is one workstation before splitting', /^1 workstation /.test(await pg.textContent('#planInfo')), await pg.textContent('#planInfo'));
     const spineId = await pg.evaluate(() => { const P = window.answerDebug.P(); return Object.values(P.panels).find(p => { const a = P.nodes[p.a], b = P.nodes[p.b]; return a.y === 0 && b.y === 0 && Math.min(a.x, b.x) === 48; }).id; });
@@ -176,7 +176,7 @@ const ck = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   // ---- #15 a job loaded or started while another stage shows is fitted when the plan shows (the hidden canvas cannot be measured) ----
   { const T = await open(); const { pg } = T; const pod = await podJSON(pg);
     await pg.click('[data-stage="install"]'); await pg.waitForTimeout(200);
-    await pg.setInputFiles('#fileIn', { name: 'pod.answer', mimeType: 'application/json', buffer: Buffer.from(pod) }); await pg.waitForTimeout(400);
+    await pg.setInputFiles('#fileIn', { name: 'pod.query', mimeType: 'application/json', buffer: Buffer.from(pod) }); await pg.waitForTimeout(400);
     await pg.click('[data-stage="plan"]'); await pg.waitForTimeout(250);
     const f = await pg.evaluate(() => { const P = window.answerDebug.P(), v = window.answerDebug.view, c = document.querySelector('#plan'); const pts = Object.values(P.nodes).map(n => [v.ox + n.x * v.s, v.oy - n.y * v.s]); const xs = pts.map(p => p[0]); return { s: v.s, inside: pts.every(([x, y]) => x > 0 && x < c.clientWidth && y > 0 && y < c.clientHeight), span: (Math.max(...xs) - Math.min(...xs)) / c.clientWidth }; });
     ck('#15 loaded on the Install stage, the plan is fitted once it shows', f.inside && f.span > 0.3 && f.s > 0.5, JSON.stringify(f));

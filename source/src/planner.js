@@ -1,4 +1,5 @@
-/* Answer Panel Planner — plan → specification → shop → pick & install */
+/* QUERY Panel Planner (formerly the Answer Panel Planner) — plans Steelcase Answer panel systems: plan → specification → shop → pick & install.
+   Internal names (window.ANSWER, answerDebug, the answer.* browser storage keys) are kept so saved work and tests carry over. */
 (function () {
   'use strict';
   const E = window.ANSWER;
@@ -1470,7 +1471,7 @@
     const lines = R.lines.filter(l => filt === 'all' || srcOf(l) === filt);
     if (!lines.length) { toast('Nothing to export for that source'); return; }
     const title = [P.name, P.job.number ? 'Job ' + P.job.number : '', P.job.customer, P.trim === 'thin' ? 'Answer Thin trim' : 'Answer Oval trim', filt !== 'all' ? SRC[filt] : 'All sources'].filter(Boolean).join(' - ');
-    const out = E.toSIF(lines, { mc: P.job.sifMC || 'STEEL', ct: P.job.sifCT || 'ANSWER', title, sf: `Generic SIF;Answer Panel Planner build ${BUILD};Created ${new Date().toLocaleDateString('en-US')}`, tagOf: grp === 'area' ? (l => areaOf(l.src)) : (l => P.job.number || P.name) });
+    const out = E.toSIF(lines, { mc: P.job.sifMC || 'STEEL', ct: P.job.sifCT || 'ANSWER', title, sf: `Generic SIF;QUERY Panel Planner build ${BUILD};Created ${new Date().toLocaleDateString('en-US')}`, tagOf: grp === 'area' ? (l => areaOf(l.src)) : (l => P.job.number || P.name) });
     download(fileBase() + (filt !== 'all' ? '_' + filt : '') + '.sif', out.text, 'text/plain');
     toast(`SIF: ${out.records} records, ${out.pieces} pieces${grp === 'area' ? ', tagged by workstation' : ''}${out.skipped.length ? ` · ${out.skipped.length} line${out.skipped.length === 1 ? '' : 's'} without a style number left out` : ''}`);
   };
@@ -1624,9 +1625,9 @@
   });
   $('#jobName').onchange = e => mutate(() => P.name = e.target.value);
   $('#bNew').onclick = () => { if (!confirm('Start a new job? This replaces the job on screen. Save it first if you need a file; Undo brings it back while this page stays open.')) return; snapshot(); P = migrate(E.newProject(P.trim)); sel = new Set(); selNode = null; fit(); refresh(); };
-  $('#bSave').onclick = () => { P.build = BUILD; P.saved = new Date().toISOString(); download(fileBase() + '.answer', JSON.stringify(P, null, 1), 'application/json'); toast('Job file downloaded'); };
+  $('#bSave').onclick = () => { P.build = BUILD; P.saved = new Date().toISOString(); download(fileBase() + '.query', JSON.stringify(P, null, 1), 'application/json'); toast('Job file downloaded'); };
   $('#bOpen').onclick = () => $('#fileIn').click();
-  $('#fileIn').onchange = e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { try { const o = JSON.parse(rd.result); if (o.app !== 'ANSWER') throw new Error('not an Answer job file'); snapshot(); P = migrate(o); sel = new Set(); selNode = null; fit(); refresh(); toast('Opened ' + f.name); } catch (err) { alert('Could not open: ' + err.message); } }; rd.readAsText(f); e.target.value = ''; };
+  $('#fileIn').onchange = e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { try { const o = JSON.parse(rd.result); if (o.app !== 'QUERY' && o.app !== 'ANSWER') throw new Error('not a QUERY job file'); o.app = 'QUERY'; /* .answer files from before the rename still open */ snapshot(); P = migrate(o); sel = new Set(); selNode = null; fit(); refresh(); toast('Opened ' + f.name); } catch (err) { alert('Could not open: ' + err.message); } }; rd.readAsText(f); e.target.value = ''; };
   $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
   $('#bDelete').onclick = () => { if (selPed && selWs) { mutate(() => { E.removePedestal(P, P.worksurfaces[selWs], selPed); selPed = null; }); return; } if (selWs) { mutate(() => { E.removeWorksurface(P, selWs); selWs = null; }); return; } if (sel.size) mutate(() => { [...sel].forEach(id => E.removePanel(P, id)); sel = new Set(); }); else if (selNode && !(R.nodes[selNode].legs || []).length) mutate(() => { delete P.nodes[selNode]; selNode = null; }); else if (selNode) toast(`${jn(selNode)} still has panels. Right-click it and choose "Delete junction and its panels", or select a panel and delete that.`); else toast('Select a panel, junction or worksurface first.'); };
   $('#optHeight').innerHTML = seg(E.heightsFor(P.trim), 54, v => v + '"', 'h'); $$('#optHeight button').forEach(b => b.onclick = () => { $$('#optHeight button').forEach(x => x.classList.toggle('on', x === b)); if (selNode) renderRight(); });
