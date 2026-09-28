@@ -1,3 +1,5 @@
+NOTE (2026-09-27): _recite.py rewrites this report on every run, so it records only its last run (the seven test files below). The rewrites of src/, README.md and CLAUDE.md are in commit 591a344; the citations corrected after the review are listed in README.md, "Review fixes and the July 2022 increase".
+
 test/corner.js: rewritten
 test/dims.js: rewritten
 test/final.js: rewritten

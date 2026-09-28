@@ -12,6 +12,6 @@ const { chromium } = require('playwright');
   console.log('spec contents blocks:', await pg.$$eval('#specBody .contains', c => c.length), 'page links:', await pg.$$eval('#specBody a.pg', c => c.length));
   await pg.screenshot({ path: 'test/p_spec_contents.png' });
   await pg.click('#tabs [data-stage="install"]'); await pg.waitForTimeout(500); console.log('pick contents:', await pg.$$eval('#installBody .contains', c => c.length));
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

@@ -39,6 +39,6 @@ const { chromium } = require('playwright');
   await pg.evaluate(() => window.scrollTo(0, 1800)); await pg.waitForTimeout(200); await pg.screenshot({ path: 'test/p_install2.png' });
   // finishes
   await pg.click('#tabs [data-stage="plan"]'); await pg.click('#bFinishes'); await pg.waitForTimeout(400); await pg.screenshot({ path: 'test/p_finishes.png' });
-  console.log(errs.length ? errs.join('\n') : 'no console errors');
+  console.log(errs.length ? errs.join('\n') : 'no console errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

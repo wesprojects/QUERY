@@ -135,7 +135,7 @@ const ck = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     const bh = await pg.evaluate(() => document.querySelector('#elevSide button').getBoundingClientRect().height); ck('Side A / Side B buttons on one line', bh < 40, bh);
     await pg.close(); }
 
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
   await b.close();
   console.log(fails ? `\n${fails} FAILURES` : '\nALL PASS'); process.exit(fails ? 1 : 0);
 })();

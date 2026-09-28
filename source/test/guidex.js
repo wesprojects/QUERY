@@ -14,5 +14,5 @@ const { chromium } = require('playwright');
     if (r.err.length || !r.parts) bad++; console.log(`${nm}: ${r.panels} panels · ${r.parts}${r.err.length ? '\n  ERR ' + r.err.join(' | ') : ''}`);
   }
   await pg.click('#bTypicals'); await pg.locator('#typicals .modalbox').screenshot({ path: 'test/overlap/typicals_dialog.png' });
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(bad ? bad + ' PROBLEMS' : `ALL ${guide.length} GUIDE EXAMPLES CLEAN`); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(bad ? bad + ' PROBLEMS' : `ALL ${guide.length} GUIDE EXAMPLES CLEAN`); if (bad) process.exitCode = 1; await b.close();
 })();

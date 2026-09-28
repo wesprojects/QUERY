@@ -14,6 +14,6 @@ const { chromium } = require('playwright');
   console.log('after swing:', await st());
   const types = await pg.evaluate(() => Object.values(window.answerDebug.P().nodes).map(n => n.id).join(','));
   await pg.screenshot({ path: 'test/p_swing.png' });
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

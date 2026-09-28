@@ -58,7 +58,7 @@ const path = require('path');
     await menu(await wsPt(wid), ['Delete worksurface']); await menu(await panelPt(ps[2], 0), ['Width', '24"']); const ps2 = await panels(); await menu(await panelPt(ps2[2], 0), ['Add worksurface', '24"D']); s = await state(); const w24 = s.ws.find(w => w.width === 24);
     await menu(await wsPt(w24.id), ['Add pedestal', 'Fixed pedestal, box/box/file', 'Left end']); const sideR = await pg.evaluate((id) => { const w = window.answerDebug.P().worksurfaces[id]; return w.side === 0 ? 0.9 : 0.1; }, w24.id); await menu(await wsPt(w24.id, sideR), ['Add pedestal', 'Fixed pedestal, box/box/file', 'Right end']); s = await state();
     ck('#3 second pedestal under a 24"W worksurface refused', s.ws.find(w => w.id === w24.id).peds.length === 1 && /Not changed: .*pedestals .* overlap/.test(await toast()) && !s.err.length, JSON.stringify([await toast(), s.err])); }
-  // #9 36"D (35 1/2") straights are freestanding only (p539 tip): the panel menu does not offer them
+  // #9 36"D (35 1/2") straights are freestanding only (p540 tip): the panel menu does not offer them
   await fresh(); await typical('Benching divider'); { const ps = await panels(); await menu(await panelPt(ps[0], 0), ['Width', '72"']); const ps2 = await panels(); const items = await menuItems(await panelPt(ps2[0], 0), ['Add worksurface']); await pg.keyboard.press('Escape');
     ck('#9 no 36"D worksurface on the panel menu (freestanding only, p539)', items.length >= 3 && !items.some(t => /36"D/.test(t)) && items.some(t => /30"D/.test(t)), JSON.stringify(items)); }
   // #12 straight-to-straight L: 24"W first return panel, full-depth back worksurface, the return placed against its front edge
@@ -69,6 +69,6 @@ const path = require('path');
     await menu(await panelPt(ps[3], sides[1]), ['Add worksurface', '24"D']); s = await state(); const B = s.ws.find(w => w.id !== A.id);
     ck('#12 straight-to-straight L placed from the menu: return butts the front edge, tied, no errors', B && B.tie.some(t => t.l) && !s.err.length && s.ws.find(w => w.id === A.id).res && /ssb/.test(JSON.stringify(s.ws.find(w => w.id === A.id).res)), JSON.stringify([await toast(), s])); }
   await pg.click('#zFit'); await pg.waitForTimeout(150); await pg.locator('#planwrap').screenshot({ path: path.join(__dirname, 'overlap', 'ws2_L.png') }).catch(() => {});
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
   console.log(fails ? `${fails} FAILURES` : 'ALL PASS'); await b.close(); process.exit(fails ? 1 : 0);
 })();

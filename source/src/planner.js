@@ -18,7 +18,9 @@
   const GUIDE_SPLIT = 189, GUIDE_SPLIT_2015 = 200;
   const guideHref = (page, edition) => edition === 2015 ? (page <= GUIDE_SPLIT_2015 ? `answer-1.pdf#page=${page}` : `answer-2.pdf#page=${page - GUIDE_SPLIT_2015}`)
     : (page <= GUIDE_SPLIT ? `answer-2022-1.pdf#page=${page}` : `answer-2022-2.pdf#page=${page - GUIDE_SPLIT}`);
-  const linkPages = (html) => html.replace(/\b(2015 )?p(\d{1,3})((?:[-–,/]\s?\d{1,3})*)\b/g, (m, ed, a, b) => `<a class="pg" href="${guideHref(+a, ed ? 2015 : 2022)}" target="answerguide" data-page="${a}" data-edition="${ed ? 2015 : 2022}" title="Open page ${a} of the ${ed ? 'February 2015' : 'June 2022'} Answer specification guide">${ed || ''}p${a}${b}</a>`);
+  // page cites become guide links in text only: markup (tags and their attributes, e.g. a title="... (p133)") is left as it is
+  const linkText = (txt) => txt.replace(/\b(2015 )?p(\d{1,3})((?:[-–,/]\s?\d{1,3})*)\b/g, (m, ed, a, b) => `<a class="pg" href="${guideHref(+a, ed ? 2015 : 2022)}" target="answerguide" data-page="${a}" data-edition="${ed ? 2015 : 2022}" title="Open page ${a} of the ${ed ? 'February 2015' : 'June 2022'} Answer specification guide">${ed || ''}p${a}${b}</a>`);
+  const linkPages = (html) => String(html).split(/(<[^>]*>)/).map((part, i) => i % 2 ? part : linkText(part)).join('');
   function openGuide(page, edition) { const v = $('#guide'); v.classList.add('on'); const ed = edition === 2015 ? 2015 : 2022; $('#guideFrame').src = guideHref(page || 1, ed) + '&zoom=page-width'; $('#guidePage').value = page || 1; $('#guideOpen').href = guideHref(page || 1, ed); const h = v.querySelector('h2'); if (h) h.textContent = ed === 2015 ? 'Answer Specification Guide · February 2015' : 'Answer Specification Guide · June 2022'; }
   document.addEventListener('click', e => { const a = e.target.closest('a.pg'); if (a) { e.preventDefault(); openGuide(+a.dataset.page, +a.dataset.edition); } });
   let P = E.newProject('thin'), R = null;
@@ -82,7 +84,16 @@
     for (const k of Object.keys(D)) if (isOld(k)) { const m = k.match(/^(cut\|)?(.*?)(\|s[12])?$/); const n = v1.get(m[2]); if (n) D[(m[1] || '') + n + (m[3] || '')] = D[k]; delete D[k]; }
     for (const k of Object.keys(K)) if (isOld(k)) { const st = /^stage\|/.test(k), rest = st ? k.split('|').slice(2).join('|') : k; for (const l of R.lines) if (l.style + '|' + l.spec === rest) K[(st ? 'stage|' : 'pick|') + E.lineKey(l)] = K[k]; delete K[k]; }
   }
+  // "New panels" heights: the heights the job's trim offers (36"H is thin only, p16, p90), rebuilt whenever the trim changes (switch, open, new, undo, restore)
+  var heightsTrim = null;
+  function buildHeights() {
+    const box = $('#optHeight'); if (!box || (heightsTrim === P.trim && box.querySelector('button'))) return;
+    const on = box.querySelector('.on'), cur = on ? +on.dataset.h : 54, hs = E.heightsFor(P.trim); heightsTrim = P.trim;
+    box.innerHTML = hs.map(v => `<button data-h="${v}" class="${v === (hs.includes(cur) ? cur : 54) ? 'on' : ''}">${v}"</button>`).join('');
+    $$('#optHeight button').forEach(b => b.onclick = () => { $$('#optHeight button').forEach(x => x.classList.toggle('on', x === b)); if (selNode) renderRight(); });
+  }
   function refresh() {
+    buildHeights();
     wsCache = null;
     for (const id of [...sel]) if (!P.panels[id]) sel.delete(id);
     if (selNode && !P.nodes[selNode]) selNode = null;
@@ -214,7 +225,7 @@
       const moving = !plain && dragMove && dragMove.ids.has(p.id); const off = moving ? [dragMove.dx, dragMove.dy] : [0, 0];
       const on = !plain && sel.has(p.id), hv = !plain && hover && hover.kind === 'panel' && hover.id === p.id;
       const g = drawPanelShape(ctx, p, off, HCOL[p.height] || '#ddd', on ? '#5980a6' : hv ? '#416180' : '#424244', on ? 3 : 1.2);
-      // frameless glass (thin, 3/8" thick, p64) or oval top screen seen from above: a line down the centre of the top cap, inset from each end by its gap (p64, p68, p111)
+      // frameless glass (thin, 3/8" thick, p64) or oval top screen seen from above: a line down the centre of the top cap, inset from each end by its gap (p64, p68, p113)
       if ((p.glassScreen && P.trim === 'thin' && !p.glassScreen.omitGlass) || (p.topScreen && P.trim === 'oval')) { const ins = (p.glassScreen ? (p.glassScreen.attach === 'clip' ? 0.125 : 0.0625) : 1.25) * view.s + (JW / 2) * view.s, L0 = Math.hypot(g.x2 - g.x1, g.y2 - g.y1) || 1, ux = (g.x2 - g.x1) / L0, uy = (g.y2 - g.y1) / L0; ctx.save(); ctx.strokeStyle = p.glassScreen ? '#5980a6' : '#98989b'; ctx.lineWidth = Math.max(1.5, 0.375 * view.s); ctx.beginPath(); ctx.moveTo(g.x1 + ux * ins, g.y1 + uy * ins); ctx.lineTo(g.x2 - ux * ins, g.y2 - uy * ins); ctx.stroke(); ctx.restore(); }
       // stacked hatch
       if (p.stack.length) { ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = '#424244'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(g.x1, g.y1); ctx.lineTo(g.x2, g.y2); ctx.stroke(); ctx.restore(); }
@@ -315,7 +326,7 @@
     c.beginPath(); pts.forEach((p, i) => { const [x, y] = toS(p[0], p[1]); if (i === 0) c.moveTo(x, y); else c.lineTo(x, y); }); c.closePath();
   }
   function drawWorksurfaces(c, plain, only, L) {
-    const ties = []; // drawn over every worksurface so the plate shows across the seam, 3" in from the user's edge (p208, p209)
+    const ties = []; // drawn over every worksurface so the plate shows across the seam, 3" in from the user's edge (tie plates p224, p237; placement from the 2015 p181-182 figures)
     for (const ws of Object.values(P.worksurfaces || {})) {
       if (only && !(only.ws ? only.ws.includes(ws.id) : only.panels.some(q => q.id === E.hostPanelOf(P, ws.id)))) continue;
       const g = plain ? E.wsGeometry(P, ws) : wsDisplayGeometry(ws); if (!g) continue; const on = !plain && selWs === ws.id; const hv = !plain && hover && hover.kind === 'ws' && hover.id === ws.id;
@@ -624,7 +635,7 @@
   }
   // stackers that no longer fit under the 90" maximum are trimmed by E.setStack (largest part that fits); say what changed
   function setHeights(list, hh) {
-    const msgs = []; mutate(() => { for (const q of list) { const before = q.stack.slice(); E.setHeight(P, q, hh); if (before.join() !== q.stack.join()) msgs.push(`${pn(q.id)}: ${hh}" + ${before.join('" + ')}" is over the 90" maximum, so the stack is now ${q.stack.length ? q.stack.join('" + ') + '"' : 'removed'} (p33).`); } });
+    const msgs = []; mutate(() => { for (const q of list) { const before = q.stack.slice(); E.setHeight(P, q, hh); if (before.join() !== q.stack.join()) msgs.push(`${pn(q.id)}: ${hh}" + ${before.join('" + ')}" is over the 90" maximum, so the stack is now ${q.stack.length ? q.stack.join('" + ') + '"' : 'removed'} (p34).`); } });
     toast(msgs.length ? msgs.join(' ') : `${who(list)} now ${hh}" high`);
   }
   // change a panel's width, moving everything beyond its far junction along the panel; refuses a panel that closes a loop
@@ -643,11 +654,11 @@
       const p = P.panels[h.id]; const side = wsSideOfClick(p, wx, wy); const Ja = R.nodes[p.a], Jb = R.nodes[p.b];
       const ends = [[p.a, Ja], [p.b, Jb]].filter(([nid, J]) => J && J.legs.length === 1);
       return [{ head: `${pn(p.id)} · ${p.width}"W × ${E.panelTotalHeight(p)}"H · side ${side === 0 ? 'A' : 'B'}` },
-        { label: 'Add worksurface on this side', children: [24, 30, 18].map(d => ({ label: `${d}"D worksurface`, run: () => addStraightWs(p.id, side, wx, wy, d), children: [{ label: 'Fit the panel', hint: 'auto', run: () => addStraightWs(p.id, side, wx, wy, d) }, '-', ...straightWidths(d).filter(w => w <= E.runOf(P, p.id).length + 3).sort((a, b) => a - b).map(w => ({ label: `${w}"W × ${d}"D`, run: () => addStraightWs(p.id, side, wx, wy, d, w) }))] })) }, // 36"D (35 1/2") straights are freestanding only (p539 tip)
+        { label: 'Add worksurface on this side', children: [24, 30, 18].map(d => ({ label: `${d}"D worksurface`, run: () => addStraightWs(p.id, side, wx, wy, d), children: [{ label: 'Fit the panel', hint: 'auto', run: () => addStraightWs(p.id, side, wx, wy, d) }, '-', ...straightWidths(d).filter(w => w <= E.runOf(P, p.id).length + 3).sort((a, b) => a - b).map(w => ({ label: `${w}"W × ${d}"D`, run: () => addStraightWs(p.id, side, wx, wy, d, w) }))] })) }, // 36"D (35 1/2") straights are freestanding only (p540 tip)
         { label: 'Continue the run', dis: !ends.length, children: ends.map(([nid, J]) => ({ label: `Add ${extW(p)}" × ${extH(p)}" panel at ${jn(nid)}`, run: () => guardedMutate(() => { const l = J.legs[0]; const q = E.addPanel(P, P.nodes[nid], (l.angle + 180) % 360, extW(p), extH(p)); extPanel(p, q); sel = new Set([q.id]); selNode = null; selWs = null; }, 'Panel not added') })) },
         { label: 'Height', children: E.heightsFor(P.trim).map(hh => ({ label: `${hh}"${hh === p.height ? '  ✓' : ''}`, run: () => setHeights(targetsOf(p), hh) })) },
         { label: 'Width', children: E.WIDTHS.map(ww => ({ label: `${ww}"${ww === p.width ? '  ✓' : ''}`, run: () => setWidths(targetsOf(p), ww) })) },
-        P.trim === 'thin' ? { label: p.glassScreen ? 'Remove glass screen' : 'Add 12" frameless glass screen', dis: p.width < 24, run: () => mutate(() => { const on = !p.glassScreen; for (const q of targetsOf(p)) q.glassScreen = on && q.width >= 24 ? (q.glassScreen || { attach: 'recessed', height: 12, frosted: false, omitGlass: false }) : null; }) } : { label: p.stack.length ? 'Remove stacker' : 'Add 12" stacker', run: () => mutate(() => { const on = !p.stack.length; for (const q of targetsOf(p)) E.setStack(P, q, on ? [12] : []); }) },
+        P.trim === 'thin' ? { label: p.glassScreen ? 'Remove glass screen' : 'Add 12" frameless glass screen', dis: p.width < 24, run: () => mutate(() => { const on = !p.glassScreen; for (const q of targetsOf(p)) { q.glassScreen = on && q.width >= 24 ? (q.glassScreen || { attach: 'recessed', height: 12, frosted: false, omitGlass: false }) : null; if (q.glassScreen) q.topCapScreen = null; } }) } : { label: p.stack.length ? 'Remove stacker' : 'Add 12" stacker', run: () => mutate(() => { const on = !p.stack.length; for (const q of targetsOf(p)) E.setStack(P, q, on ? [12] : []); }) },
         { label: 'Power', children: powerItems(p) },
         { label: 'Assign to workstation', children: stationItems(targetsOf(p)) },
         { label: 'Split this pod into stations', dis: Object.values(P.worksurfaces || {}).filter(w => { const c = E.components(P).find(x => x.panels.some(q => q.id === p.id)); return c && c.panels.some(q => q.id === E.hostPanelOf(P, w.id)); }).length < 2, run: () => { const c = E.components(P).find(x => x.panels.some(q => q.id === p.id)); if (c) splitPod(c.key); } },
@@ -844,7 +855,7 @@
     const outOf = (nid) => straightJ(nid) ? reach(nid).out : through(nid) ? reach(nid).in : reach(nid).out;
     const spanOf = (p) => E.panelSpan(P, P.panels[p.id] || p), caOf = (nid) => straightJ(nid) ? 0 : reach(nid).ca;
     const sumW = sum(chain.map(p => p.width)), outL = outOf(nodes[0]), outR = outOf(nodes[nodes.length - 1]), totalW = sum(chain.map(spanOf)) + outL + outR;
-    const glassH = (p) => p.glassScreen && P.trim === 'thin' ? E.glassHeight(p.glassScreen) : 0;
+    const glassH = (p) => p.glassScreen && P.trim === 'thin' ? E.glassAbove(p.glassScreen) : 0;
     const maxH = Math.max(...chain.map(p => topOf(p) + glassH(p) + (p.topScreen ? E.TOP_SCREEN.height : 0)), ...nodes.map(jTop));
     const pad = 30; const s = opts.fixedScale || Math.min((w - 2 * pad) / totalW, (h - pad - 52) / maxH); const y0 = h - 46; const padL = pad + Math.max(0, (w - 2 * pad - totalW * s) / 2);
     const X0 = padL + outL * s; const nodeX = [X0]; for (const r of seq) nodeX.push(nodeX[nodeX.length - 1] + spanOf(r.panel) * s); // node to node: width + corner allowances
@@ -860,7 +871,7 @@
       if (!straightJ(nid)) { const inw = Rj.in * s, away = outOf(nid) * s; x0 = dirOut < 0 ? xn - away : xn - inw; x1 = dirOut < 0 ? xn + inw : xn + away; } // corner: block + posts, to the corner face on the panel's side
       if (t === 'inline') {
         cx.strokeStyle = '#424244'; cx.lineWidth = 1.2; cx.beginPath(); cx.moveTo(xn, y0); cx.lineTo(xn, y0 - (low - capF) * s); cx.stroke();
-        if (top > low + 0.01) { // change-of-height trim over the lower panel, its top level with the taller top cap (p24); oval 1 1/8" slim / 2 1/4" cable routing (p95)
+        if (top > low + 0.01) { // change-of-height trim over the lower panel, its top level with the taller top cap (p24); oval 1 1/8" slim / 2 1/4" cable routing (p96)
           const wT = E.cohTrimWidth(P) * s, leftTall = topOf(seq[i - 1].panel) > low + 0.01; const lx = leftTall ? xn : xn - wT;
           cx.fillStyle = '#5d5d60'; cx.fillRect(lx, y0 - top * s, wT, (top - low) * s); x0 = Math.min(x0, lx); x1 = Math.max(x1, lx + wT); }
       } else if (t === 'EOR') { // the post is under the skins, inside the nominal width; the trim covers its end, top at the cap underside (p20, p37, p92)
@@ -892,16 +903,18 @@
       const capH = capF * s; let yb = y0 - (Ha - capF) * s; p.stack.forEach((st, k) => { const sa = E.STACK_ACTUAL[st] || st; drawSegs(p.stackSides[k] ? p.stackSides[k][face] : [], yb, 'k' + k + face, 0, sa / st); yb -= sa * s; });
       if (!p.topCap.omit) { cx.fillStyle = p.topCap.wood ? '#a8794e' : '#5d5d60'; if (P.trim === 'oval') { const rr = Math.min(capH, 6); cx.beginPath(); cx.moveTo(x, yb); cx.lineTo(x, yb - capH + rr); cx.quadraticCurveTo(x, yb - capH, x + rr, yb - capH); cx.lineTo(x + pw - rr, yb - capH); cx.quadraticCurveTo(x + pw, yb - capH, x + pw, yb - capH + rr); cx.lineTo(x + pw, yb); cx.closePath(); cx.fill(); } else cx.fillRect(x, yb - capH, pw, Math.max(1.5, capH)); } else { cx.save(); cx.setLineDash([3, 3]); cx.strokeStyle = '#98989b'; cx.lineWidth = 1; cx.strokeRect(x, yb - capH, pw, capH); cx.restore(); }
       hit({ kind: 'topcap', pid: p.id, x, y: yb - capH - 3, w: pw, h: capH + 3 }); yb -= capH;
-      // frameless glass (thin): actual glass height above the cap (2022 p64 9 5/16", 15 1/2", 21 11/16", 27 7/8"; clip 11 3/4" p68); each end stops half the screen-to-screen gap
+      // frameless glass (thin): the pane (p64 9 5/16", 15 1/2", 21 11/16", 27 7/8"; clip 11 3/4" p68). A recessed pane shows the kit height above the cap
+      // and drops the rest into the cap slot, drawn dashed inside the panel (E.glassAbove, E.glassRecess); a clip pane rests on the cap. Each end stops half the screen-to-screen gap
       // short of the junction center, or 1/2" (recessed) / 5/8" (clip) at an in-line change of height (p64, p65, p68)
       if (p.glassScreen && P.trim === 'thin') {
-        const G = p.glassScreen.attach === 'clip' ? E.GLASS.clip : E.GLASS.recessed, gh = E.glassHeight(p.glassScreen) * s;
+        const G = p.glassScreen.attach === 'clip' ? E.GLASS.clip : E.GLASS.recessed, gh = E.glassAbove(p.glassScreen) * s, gr = E.glassRecess(p.glassScreen) * s;
         const coh = (nid) => typeOf(nid) === 'inline' && new Set(legTops(nid).map(v => v.toFixed(3))).size > 1;
         const gx = xl + (caOf(nl) + (coh(nl) ? G.cohEnd : G.end)) * s, gw = xr - (caOf(nr) + (coh(nr) ? G.cohEnd : G.end)) * s - gx; // from the module lines
         cx.fillStyle = p.glassScreen.frosted ? 'rgba(200,225,245,.8)' : 'rgba(180,215,245,.5)'; cx.fillRect(gx, yb - gh, gw, gh); cx.strokeStyle = '#5980a6'; cx.lineWidth = 1; cx.strokeRect(gx, yb - gh, gw, gh); hit({ kind: 'glass', pid: p.id, x: gx, y: yb - gh, w: gw, h: gh });
+        if (gr > 0) { cx.save(); cx.setLineDash([4, 3]); cx.strokeStyle = '#5980a6'; cx.strokeRect(gx, yb, gw, gr); cx.restore(); } // the recessed part, inside the cap slot
       }
       if (p.topCapScreen && P.trim === 'thin') { const sh = E.topCapScreenHeight(p.topCapScreen) * s, sx = xl + caOf(nl) * s, sw = xr - caOf(nr) * s - sx; cx.fillStyle = p.topCapScreen.kind === 'sarto' ? 'rgba(214,205,190,.9)' : 'rgba(196,206,220,.9)'; cx.fillRect(sx, yb - sh, sw, sh); cx.strokeStyle = '#7d8591'; cx.lineWidth = 1; cx.strokeRect(sx, yb - sh, sw, sh); hit({ kind: 'topcapscreen', pid: p.id, x: sx, y: yb - sh, w: sw, h: sh }); }
-      if (p.topScreen && P.trim === 'oval') { const T = E.TOP_SCREEN, sx = xl + (caOf(nl) + T.inset) * s, sw = xr - (caOf(nr) + T.inset) * s - sx; cx.fillStyle = 'rgba(230,230,230,.8)'; cx.fillRect(sx, yb - T.height * s, sw, T.height * s); cx.strokeStyle = '#98989b'; cx.strokeRect(sx, yb - T.height * s, sw, T.height * s); hit({ kind: 'glass', pid: p.id, x: sx, y: yb - T.height * s, w: sw, h: T.height * s }); } // 12"H, 1 1/4" in from each end (p111, 2015 p97)
+      if (p.topScreen && P.trim === 'oval') { const T = E.TOP_SCREEN, sx = xl + (caOf(nl) + T.inset) * s, sw = xr - (caOf(nr) + T.inset) * s - sx; cx.fillStyle = 'rgba(230,230,230,.8)'; cx.fillRect(sx, yb - T.height * s, sw, T.height * s); cx.strokeStyle = '#98989b'; cx.strokeRect(sx, yb - T.height * s, sw, T.height * s); hit({ kind: 'glass', pid: p.id, x: sx, y: yb - T.height * s, w: sw, h: T.height * s }); } // 12"H, 1 1/4" in from each end (p113, 2015 p97)
       // labels
       cx.fillStyle = sel.has(p.id) && opts.highlightSel ? '#416180' : '#5d5d60'; cx.font = sel.has(p.id) && opts.highlightSel ? '600 11px Barlow, sans-serif' : '11px Barlow, sans-serif'; cx.textAlign = 'center'; cx.fillText(fitText(cx, [`${pn(p.id)} · ${p.width}"W × ${E.panelTotalHeight(p)}"H · face ${face === 0 ? 'A' : 'B'}`, `P${p.id.slice(1)} · ${p.width}×${E.panelTotalHeight(p)} · ${face === 0 ? 'A' : 'B'}`, `P${p.id.slice(1)} · ${face === 0 ? 'A' : 'B'}`, `P${p.id.slice(1)}`], xr - xl - 4), (xl + xr) / 2, y0 + 14); cx.font = '11px Barlow, sans-serif';
       hit({ kind: 'label', pid: p.id, x: xl, y: y0 + 2, w: xr - xl, h: 16 });
@@ -957,7 +970,7 @@
     ectx.save(); for (const b of Object.values(byPid)) { ectx.strokeStyle = 'rgba(89,128,166,.35)'; ectx.lineWidth = 8; ectx.strokeRect(b.x0 - 2, b.y0 - 2, b.x1 - b.x0 + 4, b.y1 - b.y0 + 4); ectx.strokeStyle = '#2f6db3'; ectx.lineWidth = 2; ectx.strokeRect(b.x0 - 2, b.y0 - 2, b.x1 - b.x0 + 4, b.y1 - b.y0 + 4); } ectx.restore();
   }
   $$('#elevSide button').forEach(b => b.onclick = () => { elevSide = +b.dataset.side; $$('#elevSide button').forEach(x => x.classList.toggle('on', x === b)); drawElev(); });
-  const ELEV_ORDER = { ped: 0, ws: 1, tile: 2, glass: 2, topcap: 3, base: 3, post: 4, label: 5 };
+  const ELEV_ORDER = { ped: 0, ws: 1, tile: 2, glass: 2, topcapscreen: 2, topcap: 3, base: 3, post: 4, label: 5 };
   function elevHit(sx, sy) { const c = elevHits.filter(o => sx >= o.x && sx <= o.x + o.w && sy >= o.y && sy <= o.y + o.h); c.sort((a, b) => ELEV_ORDER[a.kind] - ELEV_ORDER[b.kind]); return c[0] || null; }
   function elevPos(e) { const r = elev.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
   function selectFromElev(h) {
@@ -973,7 +986,7 @@
     else if (h.pid && P.panels[h.pid]) { const p = P.panels[h.pid], a = P.nodes[p.a], b = P.nodes[p.b]; pt = [(a.x + b.x) / 2, (a.y + b.y) / 2]; }
     pulseUntil = performance.now() + 1200; if (pt) centerPlanOn(pt[0], pt[1]); else drawPlan();
     // point at the matching editor row without scrolling the page
-    const row = h.kind === 'tile' ? $(`#rightcol .tile[data-key="${h.key}"][data-i="${h.i}"]`) : h.kind === 'glass' ? ($('#pGlass') || $('#pTopScreen')) : null;
+    const row = h.kind === 'tile' ? $(`#rightcol .tile[data-key="${h.key}"][data-i="${h.i}"]`) : h.kind === 'glass' ? ($('#pGlass') || $('#pTopScreen')) : h.kind === 'topcapscreen' ? $('#pTcs') : null;
     if (row) { row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1400); }
     requestAnimationFrame(() => window.scrollTo(window.scrollX, keepY));
   }
@@ -1007,7 +1020,8 @@
     if (h.kind === 'post') { const n = P.nodes[h.nid]; if (!P.nodes[h.nid]) return; showMenu(e.clientX, e.clientY, contextItems({ kind: 'node', id: h.nid }, n.x, n.y)); return; }
     if (h.kind === 'ws' || h.kind === 'ped') { showMenu(e.clientX, e.clientY, contextItems(h, 0, 0)); return; }
     if (h.kind === 'glass') { const items = [{ head: `${pn(p.id)} · ${P.trim === 'thin' ? 'frameless glass screen' : 'top screen'}` }]; if (P.trim === 'thin' && p.glassScreen) { items.push({ label: 'Height', children: E.GLASS_KITS.map(hh => ({ label: `${hh}"${p.glassScreen.height === hh ? '  ✓' : ''}`, dis: p.glassScreen.attach === 'clip', run: () => mutate(() => p.glassScreen.height = hh) })) }, { label: p.glassScreen.frosted ? 'Clear glass' : 'Frosted glass', run: () => mutate(() => p.glassScreen.frosted = !p.glassScreen.frosted) }, { label: p.glassScreen.attach === 'clip' ? 'Recessed attachment' : 'Clip-on attachment (12")', run: () => mutate(() => p.glassScreen.attach = p.glassScreen.attach === 'clip' ? 'recessed' : 'clip') }, '-', { label: 'Remove glass screen', run: () => mutate(() => p.glassScreen = null) }); } else items.push({ label: 'Remove top screen', run: () => mutate(() => p.topScreen = false) }); showMenu(e.clientX, e.clientY, items); return; }
-    if (h.kind === 'topcap') { showMenu(e.clientX, e.clientY, [{ head: `${pn(p.id)} · top cap` }, { label: 'Painted' + (!p.topCap.wood && !p.topCap.omit ? '  ✓' : ''), run: () => mutate(() => { p.topCap.wood = false; p.topCap.omit = false; }) }, { label: 'Wood' + (p.topCap.wood ? '  ✓' : ''), run: () => mutate(() => { p.topCap.wood = true; p.topCap.omit = false; }) }, { label: 'Omit (thin trim)' + (p.topCap.omit ? '  ✓' : ''), dis: P.trim !== 'thin', run: () => mutate(() => { p.topCap.omit = true; p.topCap.wood = false; }) }, '-', ...(P.trim === 'thin' ? [{ label: p.glassScreen ? 'Remove glass screen' : 'Add 12" frameless glass screen', dis: p.width < 24, run: () => mutate(() => p.glassScreen = p.glassScreen ? null : { attach: 'recessed', height: 12, frosted: false, omitGlass: false }) }] : []), { label: 'Stack on top', children: [{ label: 'None' + (!p.stack.length ? '  ✓' : ''), run: () => mutate(() => E.setStack(P, p, [])) }, ...E.stackOptions(p.height).filter(st => st.length).map(st => ({ label: st.join('" + ') + '"' + (JSON.stringify(st) === JSON.stringify(p.stack) ? '  ✓' : ''), run: () => mutate(() => E.setStack(P, p, st)) }))] }]); return; }
+    if (h.kind === 'topcapscreen') { const cur = p.topCapScreen || {}; showMenu(e.clientX, e.clientY, [{ head: `${pn(p.id)} · top cap screen (p70-73)` }, ...[['universal', 13.5, 'Universal, 13 1/2" high'], ['universal', 19.5, 'Universal, 19 1/2" high'], ['sarto', 13.5, 'Sarto, 13 1/2" high'], ['sarto', 19.5, 'Sarto, 19 1/2" high']].map(([k, hh, t]) => ({ label: t + (cur.kind === k && cur.height === hh ? '  ✓' : ''), run: () => mutate(() => { p.topCapScreen = { kind: k, height: hh }; p.glassScreen = null; }) })), '-', { label: 'Remove top cap screen', run: () => mutate(() => { p.topCapScreen = null; }) }]); return; }
+    if (h.kind === 'topcap') { showMenu(e.clientX, e.clientY, [{ head: `${pn(p.id)} · top cap` }, { label: 'Painted' + (!p.topCap.wood && !p.topCap.omit ? '  ✓' : ''), run: () => mutate(() => { p.topCap.wood = false; p.topCap.omit = false; }) }, { label: 'Wood' + (p.topCap.wood ? '  ✓' : ''), run: () => mutate(() => { p.topCap.wood = true; p.topCap.omit = false; }) }, { label: 'Omit (thin trim)' + (p.topCap.omit ? '  ✓' : ''), dis: P.trim !== 'thin', run: () => mutate(() => { p.topCap.omit = true; p.topCap.wood = false; }) }, '-', ...(P.trim === 'thin' ? [{ label: p.glassScreen ? 'Remove glass screen' : 'Add 12" frameless glass screen', dis: p.width < 24, run: () => mutate(() => { p.glassScreen = p.glassScreen ? null : { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; if (p.glassScreen) p.topCapScreen = null; }) }] : []), { label: 'Stack on top', children: [{ label: 'None' + (!p.stack.length ? '  ✓' : ''), run: () => mutate(() => E.setStack(P, p, [])) }, ...E.stackOptions(p.height, P.trim).filter(st => st.length).map(st => ({ label: st.join('" + ') + '"' + (JSON.stringify(st) === JSON.stringify(p.stack) ? '  ✓' : ''), run: () => mutate(() => E.setStack(P, p, st)) }))] }]); return; }
     if (h.kind === 'base') { showMenu(e.clientX, e.clientY, [{ head: `${pn(p.id)} · base` }, { label: (p.openBase ? '✓ ' : '') + 'Open base (no base trim, no power in the base)', run: () => mutate(() => p.openBase = !p.openBase) }, { label: (p.skinsToFloor ? '✓ ' : '') + 'Skins run to the floor', run: () => mutate(() => p.skinsToFloor = !p.skinsToFloor) }, { label: (p.baseCableTray ? '✓ ' : '') + 'Base cable tray', run: () => mutate(() => p.baseCableTray = !p.baseCableTray) }, '-', { label: 'Power', children: powerItems(p) }]); return; }
     if (h.kind === 'label') { const a = P.nodes[p.a], b = P.nodes[p.b]; const [nx, ny] = E.sideNormal(P, p, elevSide); showMenu(e.clientX, e.clientY, contextItems({ kind: 'panel', id: p.id }, (a.x + b.x) / 2 + nx * 10, (a.y + b.y) / 2 + ny * 10)); }
   });
@@ -1077,9 +1091,10 @@
       <select data-f="type" title="Tile material">${SKIN_TYPES.map(x => `<option value="${x}"${t === x ? ' selected' : ''}>${SKIN_LABEL[x]}</option>`).join('')}<option value="window"${t === 'window' ? ' selected' : ''}>Glass window</option></select>
       <select data-f="height" title="Tile height">${hs.map(h => `<option value="${h}"${sg.height === h ? ' selected' : ''}>${h}"</option>`).join('')}</select>
       ${t === 'window' ? `<select data-f="pane"><option value="single"${sg.pane !== 'double' && !sg.frosted ? ' selected' : ''}>Clear</option><option value="frosted"${sg.frosted ? ' selected' : ''}>Frosted</option><option value="double"${sg.pane === 'double' ? ' selected' : ''}>Double-pane frosted</option></select>` :
-        t === 'slatwall' ? `<select data-f="brace" title="Slatwall brace package: required only with a Details flat panel monitor arm (p131)"><option value="">No brace</option><option value="1"${sg.brace ? ' selected' : ''}>Brace (monitor arm)</option></select>` :
+        t === 'slatwall' ? `<select data-f="brace" title="Slatwall brace package: required only with a Details flat panel monitor arm (p133)"><option value="">No brace</option><option value="1"${sg.brace ? ' selected' : ''}>Brace (monitor arm)</option></select>` :
         t === 'steel' ? `<select data-f="finish"><option value=""${!sg.finish ? ' selected' : ''}>Smooth</option><option value="perforated"${sg.finish === 'perforated' ? ' selected' : ''}>Perforated</option><option value="ribbed"${sg.finish === 'ribbed' ? ' selected' : ''}>Ribbed</option></select>` :
-        t === 'technology' ? `<select data-f="cutouts"><option${(sg.cutouts || 'All') === 'All' ? ' selected' : ''}>All</option><option${sg.cutouts === 'Right' ? ' selected' : ''}>Right</option><option${sg.cutouts === 'Left' ? ' selected' : ''}>Left</option></select>` :
+        t === 'technology' ? `<select data-f="cutouts"><option${(sg.cutouts || 'All') === 'All' ? ' selected' : ''}>All</option><option${sg.cutouts === 'Right' ? ' selected' : ''}>Right</option><option${sg.cutouts === 'Left' ? ' selected' : ''}>Left</option><option${sg.cutouts === 'None' ? ' selected' : ''}>None</option></select>` :
+        t === 'back painted glass' ? `<select data-f="glassColor" title="Back painted glass color, required to specify (p500, colors p727)"><option value="">Glass color…</option>${E.BACK_PAINTED_GLASS_COLORS.map(([c, n]) => `<option value="${c} ${n}"${sg.glassColor === c + ' ' + n ? ' selected' : ''}>${c} ${n}</option>`).join('')}</select><select data-f="magneticBacker" title="Magnetic backer option (p500-501)"><option value="">No magnetic backer</option><option value="1"${sg.magneticBacker ? ' selected' : ''}>Magnetic backer</option></select>` :
         (t === 'tackable acoustical' || t === 'performance tackable acoustical') ? `<select data-f="fabric" title="Fabric for this tile">${fabricOptions(sg.fabric ? sg.fabric.code : '')}</select>` : '<span></span>'}
       <button class="x" data-f="del" title="Remove this tile (its height goes to the tile below)"${segs.length === 1 ? ' disabled' : ''}>×</button></div>`; });
     return rows.reverse().join('');
@@ -1105,7 +1120,7 @@
     const comp = E.workstationOf(P, p.id);
     const stations = E.workstations(P);
     const cap = E.powerBlocksPerSide(p.width);
-    const stackOpts = E.stackOptions(p.height);
+    const stackOpts = E.stackOptions(p.height, P.trim);
     r.innerHTML = `<div class="card">
       <div class="itemcard"><div class="head"><h2>${pn(p.id)}${multi ? ` <span class="muted">+${sel.size - 1} more selected</span>` : ''}</h2><button class="x" id="xClose" title="Deselect">×</button></div>
       <div class="muted">${esc(comp ? comp.name : '')} · ends at ${jn(p.a)} (${Ja ? jShort(Ja) : ''}) and ${jn(p.b)} (${Jb ? jShort(Jb) : ''})</div></div>
@@ -1151,7 +1166,7 @@
     $('#pStation').onchange = e => assignStation(targets(), e.target.value.trim());
     $$('#pH button').forEach(b => b.onclick = () => setHeights(targets(), +b.dataset.h));
     $$('#pW button').forEach(b => b.onclick = () => setWidths(targets(), +b.dataset.w));
-    $$('#pStack button').forEach(b => b.onclick = () => { const want = b.dataset.st ? b.dataset.st.split(',').map(Number) : []; const msgs = []; mutate(() => targets().forEach(q => { E.setStack(P, q, want); if (q.stack.join() !== want.join()) msgs.push(`${pn(q.id)}: ${q.height}" + ${want.join('" + ')}" is over 90", so it is stacked ${q.stack.length ? q.stack.join('" + ') + '"' : 'none'} (p33).`); })); toast(msgs.length ? msgs.join(' ') : want.length ? `${who(targets())}: stacked ${want.join('" + ')}" (${targets().map(q => E.panelTotalHeight(q) + '"').filter((v, i, a) => a.indexOf(v) === i).join(', ')} overall)` : `${who(targets())}: stacker removed`); });
+    $$('#pStack button').forEach(b => b.onclick = () => { const want = b.dataset.st ? b.dataset.st.split(',').map(Number) : []; const msgs = []; mutate(() => targets().forEach(q => { E.setStack(P, q, want); if (q.stack.join() !== want.join()) msgs.push(`${pn(q.id)}: ${q.height}" + ${want.join('" + ')}" is over 90", so it is stacked ${q.stack.length ? q.stack.join('" + ') + '"' : 'none'} (p34).`); })); toast(msgs.length ? msgs.join(' ') : want.length ? `${who(targets())}: stacked ${want.join('" + ')}" (${targets().map(q => E.panelTotalHeight(q) + '"').filter((v, i, a) => a.indexOf(v) === i).join(', ')} overall)` : `${who(targets())}: stacker removed`); });
     $$('#pTop button').forEach(b => b.onclick = () => mutate(() => targets().forEach(q => { q.topCap.wood = b.dataset.tc === 'wood'; q.topCap.omit = b.dataset.tc === 'omit'; })));
     $('#pBase').onchange = e => mutate(() => targets().forEach(q => q.baseTrim = e.target.value));
     $('#pOpen').onchange = e => mutate(() => targets().forEach(q => q.openBase = e.target.checked));
@@ -1190,6 +1205,8 @@
           else if (f === 'finish') sg.finish = v || undefined;
           else if (f === 'brace') sg.brace = v ? true : undefined;
           else if (f === 'cutouts') sg.cutouts = v;
+          else if (f === 'glassColor') { if (v) sg.glassColor = v; else delete sg.glassColor; }
+          else if (f === 'magneticBacker') { if (v) sg.magneticBacker = true; else delete sg.magneticBacker; }
           else if (f === 'fabric') { const fb = E.fabrics().find(x => x.code === v); if (fb) sg.fabric = { code: fb.code, name: (fb.collection ? fb.collection + ' ' : '') + fb.name, group: fb.group }; else delete sg.fabric; }
           E.normalizeSegs(segs, targetOf(row.dataset.key), P.finishes.skinType);
           if (f === 'type' || f === 'height' || f === 'pane') mirrorWindows(p, row.dataset.key);
@@ -1264,12 +1281,12 @@
       <div class="control"><label>Edge</label><select id="wEdge">${edgeOpts.map(([v, l]) => `<option value="${v}"${(lam ? ws.edge : 'SW') === v ? ' selected' : ''}${edges.includes(v) ? '' : ' disabled'}>${l}${edges.includes(v) ? '' : ' (not offered at this size)'}</option>`).join('')}</select></div>
       ${ws.kind !== 'corner120' ? `<div class="control"><label>Construction</label><select id="wCon"><option value="cord-drop"${ws.construction === 'cord-drop' ? ' selected' : ''}>1/2" cord drop at the back (standard)</option><option value="full-depth"${ws.construction === 'full-depth' ? ' selected' : ''}>Full depth (laminate 3 mm or knife edge only)</option></select></div>` : ''}
       <div class="muted">${lam ? `Laminate ${esc(P.finishes.laminate.code)} ${esc(P.finishes.laminate.name)}, edge plastic ${esc(P.finishes.plasticColor)}` : `Wood ${esc(P.finishes.wood.code)} ${esc(P.finishes.wood.name)}`} · change under Finishes &amp; settings</div>
-      ${lam ? `<label class="check"><input type="checkbox" id="wOpen"${ws.options.openLine ? ' checked' : ''}>Open Line laminate (+$65 plus the laminate)</label>` : `<label class="check"><input type="checkbox" id="wFull"${ws.options.fullFill ? ' checked' : ''}>Full-fill finish</label>`}
+      ${lam ? `<label class="check"><input type="checkbox" id="wOpen"${ws.options.openLine ? ' checked' : ''}>Open Line laminate (+$${(E.option(E.product('uw-straight'), 'openLine') || {}).price} plus the laminate, p538)</label>` : `<label class="check"><input type="checkbox" id="wFull"${ws.options.fullFill ? ' checked' : ''}>Full-fill finish</label>`}
       <label class="check"><input type="checkbox" id="wScallop"${ws.options.omitScallop ? ' checked' : ''}>Omit the cable scallop on the back edge</label>
       <div class="sec">Supports</div>
       ${supportSel(ek.left, endLabel(ws, 'left'))}${supportSel(ek.right, endLabel(ws, 'right'))}
       ${ws.kind !== 'straight' ? '<div class="muted">The rear corner takes one side support bracket (p237, p588).</div>' : ''}
-      <div class="muted">Automatic follows p207-217: cantilevers at free ends, one cantilever shared at a seam, a side support bracket where a return panel wraps the end, a fixed pedestal where one sits, and an end panel for the front edge of 30"D worksurfaces. Spans over 54" get a reinforcing channel.</div>
+      <div class="muted">Automatic follows p216-217 and p223-239: cantilevers at free ends, one cantilever shared at a seam, a side support bracket where a return panel wraps the end, a fixed pedestal where one sits, and an end panel for the front edge of 30"D worksurfaces. Spans over 54" get a reinforcing channel.</div>
       <div class="sec">Pedestals</div>
       ${(ws.peds || []).map(d => `<div class="tile" data-ped="${d.id}" style="grid-template-columns:auto 1fr 1fr 1fr 28px"><span class="pos">${d.at === ek.left ? 'left' : d.at === ek.right ? 'right' : d.at}</span><select data-f="type"><option value="fixed"${d.type === 'fixed' ? ' selected' : ''}>Fixed 27"H</option><option value="mobile"${d.type === 'mobile' ? ' selected' : ''}>Mobile</option></select><select data-f="config">${(d.type === 'mobile' ? [['A', 'Box/box/file'], ['B', 'File/file'], ['C', 'Box/file 21"H']] : [['A', 'Box/box/file'], ['B', 'File/file']]).map(([c, l]) => `<option value="${c}"${d.config === c ? ' selected' : ''}>${l}</option>`).join('')}</select><select data-f="front"><option value="F"${d.front === 'F' ? ' selected' : ''}>Flush steel</option><option value="P"${d.front === 'P' ? ' selected' : ''}>Proud steel</option><option value="W"${d.front === 'W' ? ' selected' : ''}>Proud wood</option></select><button class="x" data-f="del">×</button></div>
         ${d.front !== 'F' ? `<div class="control" style="margin-left:8px"><label>Pull</label><select data-pedpull="${d.id}">${['contemporary', 'handle', 'jazz', 'bar', ...(d.front === 'P' ? ['c:scape'] : [])].map(pl => `<option${(d.pull || 'contemporary') === pl ? ' selected' : ''}>${pl}</option>`).join('')}</select><select data-pedcolor="${d.id}">${E.pullColors(d.pull || 'contemporary').map(([c, l], i) => `<option value="${c}"${(E.pullColors(d.pull || 'contemporary').some(([x]) => x === d.pullColor) ? d.pullColor === c : i === 0) ? ' selected' : ''}>${c} ${l}</option>`).join('')}</select></div>` : ''}`).join('') || '<div class="muted">None. A fixed pedestal supports the worksurface end and replaces the cantilever there.</div>'}
@@ -1326,7 +1343,7 @@
       <div class="sec">Steel skin paint</div>${swatches(steelPaints.length ? steelPaints : E.allPaints(), F.steelPaint.code, 'steel')}
       <div class="control" style="margin-top:10px"><label>Laminate</label><select id="fLam">${E.laminates().filter(l => l.code).map(l => `<option value="${l.code}"${l.code === F.laminate.code ? ' selected' : ''}>${l.code} ${esc(l.name)} · ${esc(l.family || '')}</option>`).join('')}</select></div>
       <div class="control"><label>Worksurface edge</label><select id="fEdge">${E.edges().map(e => `<option value="${e.code}"${e.code === (F.edge || {}).code ? ' selected' : ''}>${e.code} ${esc(e.name)}</option>`).join('')}</select></div>
-      <div class="muted">Plastic front edge on laminate worksurfaces (p506, p711). The guide recommends an edge color for each laminate on p716-717, e.g. 6009 Arctic White with 2730 Arctic White.</div>
+      <div class="muted">Plastic front edge on laminate worksurfaces (p538-539, p727). The guide recommends an edge color for each laminate on p734-735, e.g. 6009 Arctic White with 2730 Arctic White.</div>
       <div class="sec">Electrical</div>
       <div class="control"><label>Wiring schematic</label><select id="pSchem"><option value="X"${P.power.schematic === 'X' ? ' selected' : ''}>4-circuit, 3+1</option><option value="Y"${P.power.schematic === 'Y' ? ' selected' : ''}>4-circuit, 2+2</option><option value="Z"${P.power.schematic === 'Z' ? ' selected' : ''}>3-circuit, separate neutrals</option></select></div>
       <div class="control"><label>Harness material</label><select id="pPvc"><option value="0"${!P.power.nonPvc ? ' selected' : ''}>PVC (standard)</option><option value="1"${P.power.nonPvc ? ' selected' : ''}>Non-PVC (LEED)</option></select></div>
@@ -1339,7 +1356,7 @@
       <div class="sec">SIF export</div>
       <div class="muted">Codes written to every SIF record. Match them to what your CAP or dealer system uses for Steelcase Answer.</div>
       <div class="fields2"><div class="field"><label>Manufacturer code (MC)</label><input type="text" id="sifMC" maxlength="5" value="${esc(P.job.sifMC || 'STEEL')}"></div><div class="field"><label>Catalog code (CT)</label><input type="text" id="sifCT" maxlength="12" value="${esc(P.job.sifCT || 'ANSWER')}"></div></div>
-      <div class="muted" style="margin-top:12px">Prices are U.S. list from the June 2022 Answer specification guide (price list 198.B, June 20, 2022); the 9% adjustment effective July 18, 2022 (page 1) is not applied. Confirm current pricing with Steelcase.</div>`;
+      <div class="muted" style="margin-top:12px">Prices are U.S. list from the June 2022 Answer specification guide (price list 198.B, June 20, 2022) with the 9% adjustment effective July 18, 2022 applied (p1): each base price and option is raised 9% and rounded to the dollar. The guide pages still print the June prices. Confirm current pricing with Steelcase.</div>`;
     const upd = (fn) => { mutate(fn); renderFinishes(); };
     $$('[data-paint]', $('#finishBody')).forEach(b => b.onclick = () => upd(() => { const p = E.allPaints().find(x => x.code === b.dataset.paint); P.finishes.trimPaint = { code: p.code, name: p.name, group: p.group || 1 }; }));
     $$('[data-steel]', $('#finishBody')).forEach(b => b.onclick = () => upd(() => { const p = E.allPaints().find(x => x.code === b.dataset.steel); P.finishes.steelPaint = { code: p.code, name: p.name, group: p.group || 1 }; }));
@@ -1458,7 +1475,7 @@
     html += `<table class="t spec"><thead><tr><th>Source</th><th class="n">Qty</th><th>Style number</th><th>Description</th><th>Specify (finish and options)</th><th class="n">Unit</th><th class="n">Ext</th><th>Where</th><th>Page</th></tr></thead><tbody>`;
     let cur = null, sub = 0; const flush = () => { if (cur !== null) html += `<tr class="tot"><td colspan="6" style="text-align:right">${esc(cur)} subtotal</td><td class="n">${money(sub)}</td><td colspan="2"></td></tr>`; sub = 0; };
     for (const l of lines) { const g = grp === 'cat' ? l.cat : l.area; if (g !== cur) { flush(); cur = g; html += `<tr class="grp"><td colspan="9">${esc(g)}</td></tr>`; } sub += l.ext; const s = srcOf(l); html += `<tr><td><select class="src ${s}" data-k="${esc(E.lineKey(l))}"><option value="buy"${s === 'buy' ? ' selected' : ''}>Buy new</option><option value="refurbish"${s === 'refurbish' ? ' selected' : ''}>Refurbish</option><option value="stock"${s === 'stock' ? ' selected' : ''}>Stock</option></select></td><td class="n">${l.qty}</td><td class="sn">${esc(l.style)}</td><td>${esc(l.desc)}${contentsHTML(l.contents)}${l.flags.map(f => `<span class="flag${/CORRECTED/.test(f) ? ' red' : ''}">⚠ ${esc(f)}</span>`).join('')}${l.notes.map(n => `<span class="note">${esc(n)}</span>`).join('')}</td><td>${esc(l.spec)}</td><td class="n">${money(l.unit)}</td><td class="n">${money(l.ext)}</td><td>${esc(grp === 'cat' ? l.area + ' · ' + where(l.src) : where(l.src))}</td><td>p${l.page}</td></tr>`; }
-    flush(); html += `<tr class="tot"><td colspan="6" style="text-align:right">Total U.S. list${filt !== 'all' ? ' (' + SRC[filt] + ')' : ''}</td><td class="n">${money(lines.reduce((a, l) => a + l.ext, 0))}</td><td colspan="2"></td></tr><tr class="tot"><td colspan="6" style="text-align:right">Canadian list ×1.09${filt !== 'all' ? ' (' + SRC[filt] + ')' : ''}</td><td class="n">${money(E.cadTotal(lines))}</td><td colspan="2"></td></tr></tbody></table>`;
+    flush(); html += `<tr class="tot"><td colspan="6" style="text-align:right">Total U.S. list${filt !== 'all' ? ' (' + SRC[filt] + ')' : ''} · June 2022 list + 9% from July 18, 2022 (p1)</td><td class="n">${money(lines.reduce((a, l) => a + l.ext, 0))}</td><td colspan="2"></td></tr><tr class="tot"><td colspan="6" style="text-align:right">Canadian list ×1.09${filt !== 'all' ? ' (' + SRC[filt] + ')' : ''}</td><td class="n">${money(E.cadTotal(lines))}</td><td colspan="2"></td></tr></tbody></table>`;
     $('#specBody').innerHTML = linkPages(html);
     $$('#specBody select.src').forEach(s => s.onchange = () => mutate(() => { P.sourcing.byKey = P.sourcing.byKey || {}; P.sourcing.byKey[s.dataset.k] = s.value; }));
   }
@@ -1618,10 +1635,12 @@
   $$('#trimSwitch button').forEach(b => b.onclick = () => {
     if (P.trim === b.dataset.trim) return;
     const ps = Object.values(P.panels); const toOval = b.dataset.trim === 'oval'; const cnt = (f) => ps.filter(f).length; const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-    const lost = toOval ? [[cnt(p => p.glassScreen), 'frameless glass screen'], [cnt(p => p.topCap && p.topCap.omit), 'omitted top cap']] : [[cnt(p => p.topScreen), 'translucent top screen']];
+    const lost = toOval ? [[cnt(p => p.glassScreen), 'frameless glass screen'], [cnt(p => p.topCapScreen), 'top cap screen'], [cnt(p => p.topCap && p.topCap.omit), 'omitted top cap']] : [[cnt(p => p.topScreen), 'translucent top screen']];
+    const h36 = toOval ? cnt(p => p.height === 36) : 0, six = toOval ? cnt(p => (p.stack || []).includes(6)) : 0;
+    const errs = [h36 ? `${pl(h36, 'panel')} 36"H: 36"H is a thin-trim height (p16, p90)` : '', six ? `${pl(six, 'panel')} with a 6" stacker: the 6"H stacker is thin trim only (p441-p444)` : ''].filter(Boolean);
     const said = lost.filter(([n]) => n).map(([n, w]) => pl(n, w));
     mutate(() => { P.trim = b.dataset.trim; });
-    toast(`Job switched to ${P.trim} trim. Every junction and package was regenerated.` + (said.length ? ` ${said.join(' and ')} ${sum(lost.map(([n]) => n)) === 1 ? 'is' : 'are'} not offered in ${P.trim} trim: kept aside and restored if you switch back to ${toOval ? 'thin' : 'oval'}.` : ''));
+    toast(`Job switched to ${P.trim} trim. Every junction and package was regenerated.` + (said.length ? ` ${said.join(' and ')} ${sum(lost.map(([n]) => n)) === 1 ? 'is' : 'are'} not offered in ${P.trim} trim: kept aside and restored if you switch back to ${toOval ? 'thin' : 'oval'}.` : '') + (errs.length ? ` ${errs.join('; ')}. They are listed as errors until you change them.` : ''));
   });
   $('#jobName').onchange = e => mutate(() => P.name = e.target.value);
   $('#bNew').onclick = () => { if (!confirm('Start a new job? This replaces the job on screen. Save it first if you need a file; Undo brings it back while this page stays open.')) return; snapshot(); P = migrate(E.newProject(P.trim)); sel = new Set(); selNode = null; fit(); refresh(); };
@@ -1630,7 +1649,7 @@
   $('#fileIn').onchange = e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { try { const o = JSON.parse(rd.result); if (o.app !== 'QUERY' && o.app !== 'ANSWER') throw new Error('not a QUERY job file'); o.app = 'QUERY'; /* .answer files from before the rename still open */ snapshot(); P = migrate(o); sel = new Set(); selNode = null; fit(); refresh(); toast('Opened ' + f.name); } catch (err) { alert('Could not open: ' + err.message); } }; rd.readAsText(f); e.target.value = ''; };
   $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
   $('#bDelete').onclick = () => { if (selPed && selWs) { mutate(() => { E.removePedestal(P, P.worksurfaces[selWs], selPed); selPed = null; }); return; } if (selWs) { mutate(() => { E.removeWorksurface(P, selWs); selWs = null; }); return; } if (sel.size) mutate(() => { [...sel].forEach(id => E.removePanel(P, id)); sel = new Set(); }); else if (selNode && !(R.nodes[selNode].legs || []).length) mutate(() => { delete P.nodes[selNode]; selNode = null; }); else if (selNode) toast(`${jn(selNode)} still has panels. Right-click it and choose "Delete junction and its panels", or select a panel and delete that.`); else toast('Select a panel, junction or worksurface first.'); };
-  $('#optHeight').innerHTML = seg(E.heightsFor(P.trim), 54, v => v + '"', 'h'); $$('#optHeight button').forEach(b => b.onclick = () => { $$('#optHeight button').forEach(x => x.classList.toggle('on', x === b)); if (selNode) renderRight(); });
+  buildHeights();
   window.addEventListener('keydown', e => {
     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
     const mod = e.ctrlKey || e.metaKey; const k = e.key.toLowerCase();

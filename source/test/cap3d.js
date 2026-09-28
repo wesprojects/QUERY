@@ -24,6 +24,16 @@ for b in d.blocks:
         'x': [round(min(v.x for v in vs), 4), round(max(v.x for v in vs), 4)] if vs else None, 'y': [round(min(v.y for v in vs), 4), round(max(v.y for v in vs), 4)] if vs else None, 'z': [round(min(v.z for v in vs), 4), round(max(v.z for v in vs), 4)] if vs else None,
         'layers': sorted(set(e.dxf.layer for e in meshes))}
 out['msp3d'] = sum(1 for e in d.modelspace().query('INSERT') if e.dxf.name.startswith('3_'))
+import collections
+cnt = collections.Counter()
+def walk(ents, mult):
+    for e in ents:
+        if e.dxftype() != 'INSERT': continue
+        at = {x.dxf.tag: x.dxf.text for x in e.attribs}
+        if at.get('CAPPN'): cnt[at['CAPPN']] += mult
+        if e.dxf.name in d.blocks: walk(d.blocks.get(e.dxf.name), mult)
+walk(d.modelspace(), 1)
+out['cappn'] = dict(cnt)
 print(json.dumps(out))
 `;
 fs.writeFileSync('test/capout/survey3d.py', SURVEY);
@@ -76,8 +86,9 @@ const rng = (r, a, b, t = 0.002) => !!r && near(r[0], a, t) && near(r[1], b, t);
   ck('v1: separate trims: the 54" end trim 1/2" x 3" to the 54" cap lip, the change-of-height trim 3/4" wide from the 42" lip to the 54" lip, the L vertical trim faces to the 42" lip', !!tr && near(tr[1].x[1] - tr[1].x[0], 0.5) && near(tr[1].z[1], 53.625) && !!coh && near(coh[1].x[1] - coh[1].x[0], 0.75) && near(coh[1].z[0], 41.25) && near(coh[1].z[1], 53.625) && !!lvt && near(lvt[1].z[1], 41.25), JSON.stringify([tr && tr[1], coh && coh[1], lvt && lvt[1]]));
   const pieces = Object.values(s.blocks).filter(b => b.points === 1 && b.meshes === 0 && b.ins.length === 0).length;
   ck('v1: parts with no body in the guide (aligners, seals, connectors) are points, as in CAP\'s library', pieces >= 3, pieces);
-  const count = R.lines.reduce((a, l) => a + (l.style !== '—' ? l.qty : 0), 0);
-  ck('v1: the 2D symbol count is unchanged by the 3D twins (one insert per specified piece)', count > 10, count);
+  const exp = {}; for (const l of R.lines) if (l.style && l.style !== '—') exp[l.style] = (exp[l.style] || 0) + l.qty;
+  const bad = Object.keys({ ...exp, ...s.cappn }).filter(k => (exp[k] || 0) !== (s.cappn[k] || 0));
+  ck('v1: with the 3D twins in the file, each style is still inserted exactly as many times as the specification lists it (2D symbols, CAPPN)', Object.keys(exp).length > 10 && !bad.length, JSON.stringify(bad.map(k => [k, exp[k] || 0, s.cappn[k] || 0])));
 }
 // ---- a furnished job: worksurface slab; the whole export still audits clean
 {
@@ -87,5 +98,31 @@ const rng = (r, a, b, t = 0.002) => !!r && near(r[0], a, t) && near(r[1], b, t);
   P.name = 'furnished'; const { s } = exportJob(P, 'furnished'); hasTwins(s, 'furnished');
   const ws = Object.entries(s.blocks).filter(([nm, b]) => nm.startsWith('3_') && b.layers.includes('A-FURN-P-WKSF'));
   ck('furnished: worksurfaces are slabs 1 3/16" thick with their top at 28 1/2" (p222)', ws.length === 2 && ws.every(([, b]) => near(b.z[1], 28.5) && near(b.z[0], 28.5 - 1.1875)), JSON.stringify(ws.map(([nm, b]) => [nm, b.z])));
+}
+// ---- review fixes 2026-09-27: stacked stacking junctions, clip glass, skins to the floor, in-line junctions without a cap
+{
+  const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); const q = E.addPanel(P, c, 0, 36, 42); E.setStack(P, q, [12, 12]);
+  P.name = 'fix_stack'; const { s } = exportJob(P, 'fix_stack');
+  const lo = find(s, /^3_TS712TEPJS/, x => x.z && near(x.z[0], 40.75)), hi = find(s, /^3_TS712TEPJS/, x => x.z && near(x.z[0], 40.75 + 12.375));
+  ck('fix: the second 12" stacking junction stands on the first (53 1/8" to 65 1/2"), not on the base post (p20, p32)', !!lo && !!hi && near(lo[1].z[1], 53.125) && near(hi[1].z[1], 65.5), JSON.stringify(Object.entries(s.blocks).filter(([n]) => /^3_TS712TEPJS/.test(n)).map(([n, b]) => [n, b.z])));
+}
+{
+  const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); const q = E.addPanel(P, c, 0, 36, 42); q.glassScreen = { attach: 'clip', height: 12, frosted: false, omitGlass: false };
+  P.name = 'fix_clip'; const { s, R } = exportJob(P, 'fix_clip'); const st = (R.lines.find(l => /frameless-glass-screen-clip/.test(l.pid || '')) || {}).style || 'none';
+  const cfg = Object.keys(s.blocks).find(n => n.startsWith('3_') && s.blocks[n].ins && s.blocks[n].ins.some(i => i[0].startsWith('3_' + st)));
+  const g = cfg && nested(s, cfg).find(n => n.name.startsWith('3_' + st) && n.z);
+  ck('fix: a clip-attached glass screen is 11 3/4" of glass with 1/8" ends (p68), not the recessed 15 1/2"', !!g && near(g.z[1] - g.z[0], 11.75) && rng(g.x, 0.125, 35.875), JSON.stringify(g && [st, g.x, g.z]));
+}
+{
+  const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); const q = E.addPanel(P, c, 0, 36, 42); q.skinsToFloor = true;
+  P.name = 'fix_floor'; const { s } = exportJob(P, 'fix_floor');
+  const cfg = Object.keys(s.blocks).find(n => /^3_[AB]36/.test(n)); const parts = cfg ? nested(s, cfg) : [];
+  const fr = parts.find(n => /TS736THF/.test(n.name)), sk = parts.filter(n => /TS73636TKF|TKF/.test(n.name) && n.z);
+  ck('fix: skins to the floor: no base trim body on the frame, the F skins run from the floor (p19)', !!fr && fr.z && fr.z[0] > 40 && sk.length === 2 && sk.every(n => near(n.z[0], 0) && near(n.z[1], 41.25)), JSON.stringify([fr && fr.z, sk.map(n => [n.name, n.z])]));
+}
+{
+  const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); const q = E.addPanel(P, c, 0, 36, 42); E.addPanel(P, P.nodes[q.b], 0, 36, 42);
+  P.name = 'fix_inline'; const { s } = exportJob(P, 'fix_inline'); const j = find(s, /^3_TS742TIPJ/);
+  ck('fix: an in-line base junction has no junction cap body (p20, p352)', !!j && j[1].meshes === 1, JSON.stringify(j && j[1]));
 }
 console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); process.exit(fails ? 1 : 0);

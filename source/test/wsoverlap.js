@@ -27,5 +27,5 @@ const { chromium } = require('playwright');
       console.log(`${nm} (${r.n} ws)`, r.out.length ? '\n  ' + r.out.join('\n  ') : 'no overlaps', r.err.length ? '\n  ERR ' + r.err.join('\n  ERR ') : '');
     }
   }
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(bad ? `${bad} typicals with problems` : 'ALL CLEAN'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(bad ? `${bad} typicals with problems` : 'ALL CLEAN'); if (bad) process.exitCode = 1; await b.close();
 })();

@@ -84,12 +84,12 @@
         const o = (type === 'L' || type === 'T' || type === 'X') ? [1.5, 1.5] : (type === 'V' || type === 'Y') ? [0, 0] : [0, 1.5]; // the node in the symbol's frame
         const lo = Math.min(...legs.map(l => l.top)), hi = Math.max(...legs.map(l => l.top)), post = Math.max(...legs.map(l => JH[l.base]));
         if (type === 'EOR' || type === 'wall') { junction3(b3, type, legs, o, 0, null, false, L3.junction); if (type === 'wall' && WALL_FACE) boxAlong3(b3, L3.junction, o, dirOf(legs[0].a), -WALL_FACE, 0, 1.5, 0, hi - capF); else if (!c3.omit) eorTrim3(b3, dirOf(legs[0].a), o, hi); }
-        else { junction3(b3, type, legs, o, 0, null, true, L3.junction); if (!c3.omit && !legs.some(l => l.stack.length)) cap3(b3, type, legs, o, post, hi); if (!c3.omit && (type === 'L' || type === 'T') && hi - lo < 0.01) cornerTrim3(b3, type, legs, o, hi); }
+        else { junction3(b3, type, legs, o, 0, null, true, L3.junction); if (!c3.omit && type !== 'inline' && !legs.some(l => l.stack.length)) cap3(b3, type, legs, o, post, hi); /* in-line junctions take no junction cap (p20, p352, p357) */ if (!c3.omit && (type === 'L' || type === 'T') && hi - lo < 0.01) cornerTrim3(b3, type, legs, o, hi); }
         if (hi - lo > 0.01 && !c3.omit) cohTrim3(b3, type, legs, o, lo, hi); // a pre-configured change-of-height junction includes its trim (p40-47)
       } : null);
     }
     function frameBlock(style, wd, h, p, pkg) { // the panel frame/package: w x 3 outline on the height layer, tag w/h below the panel; 3D: base trim, top cap, package skins
-      const s3 = p ? `|${p.height}:${(p.stack || []).join('+')}:${p.openBase ? 'o' : ''}${p.topCap && p.topCap.omit ? 'n' : ''}${pkg ? 'k' : ''}` : '';
+      const s3 = p ? `|${p.height}:${(p.stack || []).join('+')}:${p.openBase ? 'o' : ''}${p.skinsToFloor ? 'f' : ''}${p.topCap && p.topCap.omit ? 'n' : ''}${pkg ? 'k' : ''}` : '';
       return block(style, 'F' + wd + 'x' + h + s3, b => { const L = panelLayer(h); sq(b, L, rect(0, 0, wd, 3)); for (const q of [[0, 3], [wd, 3], [wd, 0], [0, 0]]) pt(b, L, q); partAttdefs(b, L + '-T', { pos: [wd / 2, -5.5], align: [wd / 2, -5.5], h: 3 }); },
         p ? (b3) => frame3(b3, wd, p, pkg) : null);
     }
@@ -98,9 +98,13 @@
     function nodePartBlock(l, type, legs, o) {
       const pid = l.pid || '', a = (E.rowsByStyle(l.style).find(r => r._pid === pid) || { attrs: {} }).attrs || {}; const sig = `NP${type}|` + legs.map(x => `${x.a}:${x.base}:${x.stack.join('+')}`).join(',');
       const lo = Math.min(...legs.map(x => x.top)), hi = Math.max(...legs.map(x => x.top)), post = Math.max(...legs.map(x => JH[x.base]));
-      const mk = (build3) => block(l.style, sig, b => { pt(b, 'A-FURN-POINT-PART', [0, 0]); partAttdefs(b, 'A-FURN-POINT-PART-T'); }, build3);
+      const mk = (build3, key) => block(l.style, sig + (key || ''), b => { pt(b, 'A-FURN-POINT-PART', [0, 0]); partAttdefs(b, 'A-FURN-POINT-PART-T'); }, build3);
       if (/stacking.*junction/.test(pid) && !/frame/.test(pid)) { // the stacking junction sits on the base junction (p32): its footprint, from the post height, its own height
-        const st = a.stackHeight || 12; const leg = legs.reduce((m, x) => x.stack.includes(st) && (!m || JH[x.base] < JH[m.base]) ? x : m, null) || legs[0]; const z0 = JH[leg.base]; return mk(b3 => junction3(b3, type, legs, o, z0, z0 + (E.STACK_ACTUAL[st] || st), false, L3.stack)); }
+        const st = a.stackHeight || 12; const leg = legs.reduce((m, x) => x.stack.includes(st) && (!m || JH[x.base] < JH[m.base]) ? x : m, null) || legs[0];
+        // it starts on the base junction post plus the actual heights of the stacking junctions under it (p32): the band in the line's text ("54"→66"") says which tier
+        const band = (l.desc || '').match(/\((\d+)"→(\d+)"/), from = band ? +band[1] : leg.base; let acc = leg.base, z0 = JH[leg.base];
+        for (const s of leg.stack) { if (acc >= from) break; acc += s; z0 += E.STACK_ACTUAL[s] || s; }
+        return mk(b3 => junction3(b3, type, legs, o, z0, z0 + (E.STACK_ACTUAL[st] || st), false, L3.stack), '|z' + z0.toFixed(4)); }
       if (/junction-caps/.test(pid)) return mk(b3 => cap3(b3, type, legs, o, Math.max(...legs.map(stackTop)), hi));
       if (/end-of-run-vertical-trim/.test(pid)) return mk(b3 => eorTrim3(b3, dirOf(legs[0].a), o, AH(a.height || hi)));
       if (/l-t-vertical-trim|v-vertical-trim/.test(pid)) return mk(b3 => cornerTrim3(b3, type, legs, o, AH(a.height || hi)));
@@ -169,7 +173,8 @@
     // the frame or panel package: base trim (p58), top cap at the actual height (p16, moved up by stackers p32); a package carries its skins too (p78)
     function frame3(b, wd, p, pkg) {
       const top = E.actualTop(trim, p);
-      if (!p.openBase) box3(b, L3.frame, 0, 0, 0, wd, 3, BT); else box3(b, L3.frame, 0, 0, 0, wd, 3, E.OPEN_BASE.height - E.OPEN_BASE.opening); // open base: bottom 3 1/4" with a 2 1/2" opening (p59)
+      if (p.skinsToFloor) { /* skins to the floor: the base trims are omitted and the bottom skins run to the floor (p19) */ }
+      else if (!p.openBase) box3(b, L3.frame, 0, 0, 0, wd, 3, BT); else box3(b, L3.frame, 0, 0, 0, wd, 3, E.OPEN_BASE.height - E.OPEN_BASE.opening); // open base: bottom 3 3/4" with a 2 1/2" opening (p59)
       if (!p.topCap.omit) box3(b, L3.frame, 0, 0, top - capF, wd, 3, top);
       if (pkg) for (const y of [0, 3]) face3(b, L3.skin, [[0, y, BT], [wd, y, BT], [wd, y, AH(p.height) - capF], [0, y, AH(p.height) - capF]]);
     }
@@ -220,7 +225,7 @@
     const left = new Map(lines.map(l => [l, l.qty])); // units of each line still to place: every unit becomes one INSERT
     const stations = {}; (E.workstations ? E.workstations(P) : []).forEach((g, i) => { const nm = g.name || ('Workstation ' + (i + 1)); for (const p of g.panels || []) stations[p.id] = nm; for (const ws of g.ws || []) stations[ws.id] = nm; });
     const stationOf = (id) => stations[id] || '';
-    const attrs = (l, tag, extra) => Object.assign({ CAPPN: l.style === '—' ? '' : l.style, CAPPD: (l.desc || '').slice(0, 120), CAPMG: 'STC', CAPMC: 'TSA', CAPGC: '', CAPALIAS1: '', CAPALIAS2: '', CAPALIAS3: '', CAPBLDG: '', CAPFLOOR: '', CAPDEPT: '', CAPPERSON: '', CAPPL: (Math.round((l.unit || 0) * 100) / 100).toFixed(4), CAPTG: tag || '', CAPQT: '1', CAPDH: '0' }, extra || {});
+    const attrs = (l, tag, extra) => Object.assign({ CAPPN: l.style === '—' ? '' : l.style, CAPPD: (l.desc || '').slice(0, 120), CAPMG: opts.mfg || 'STC', CAPMC: opts.catalog || 'TSA', CAPGC: '', CAPALIAS1: '', CAPALIAS2: '', CAPALIAS3: '', CAPBLDG: '', CAPFLOOR: '', CAPDEPT: '', CAPPERSON: '', CAPPL: (Math.round((l.unit || 0) * 100) / 100).toFixed(4), CAPTG: tag || '', CAPQT: '1', CAPDH: '0' }, extra || {});
     const top = []; // top-level inserts
     const place = (l, name, x, y, rot, tag, extra, layer) => { if (!left.get(l)) return false; left.set(l, left.get(l) - 1); top.push({ name, x, y, rot: ((rot % 360) + 360) % 360, layer, attribs: attrs(l, tag, extra) }); return true; };
     const isPanelLine = (l) => l.cat === 'Panel' || l.cat === 'Frame';
@@ -256,13 +261,13 @@
         const tileBody = (side, sg, hz, z0) => sg.kind === 'window' ? { key: `W${wd}x${hz.toFixed(3)}`, x: 0, y: 0, rot: 0, z0, build: b3 => window3(b3, wd, hz) }
           : { key: `S${wd}x${hz.toFixed(3)}`, x: side === 0 ? wd : 0, y: side === 0 ? 0 : 3, rot: side === 0 ? 180 : 0, z0, build: b3 => skin3(b3, wd, hz) };
         for (const side of [0, 1]) { // base tiles from the base trim up, scaled to fill to the cap lip (p16, p19); stack tiers above at the stacking junction heights (p32)
-          let z = BT; const k = skinScale(p.height);
-          for (const sg of p.sides[side]) { const hz = sg.height * k; const l = tileLine(side, sg); if (l) bodies.set(l, tileBody(side, sg, hz, z)); z += hz; }
+          let z = p.skinsToFloor ? 0 : BT; const k = skinScale(p.height);
+          for (const [i, sg] of p.sides[side].entries()) { const hz = sg.height * k + (p.skinsToFloor && i === 0 ? BT : 0); const l = tileLine(side, sg); if (l) bodies.set(l, tileBody(side, sg, hz, z)); z += hz; } /* a to-the-floor skin starts at the floor (p19) */
           let zt = AH(p.height) - capF;
           (p.stack || []).forEach((st, i) => { const ks = stackScale(st); for (const sg of (p.stackSides[i] || [[], []])[side] || []) { const hz = sg.height * ks; const l = tileLine(side, sg); if (l) bodies.set(l, tileBody(side, sg, hz, zt)); zt += hz; } });
         }
-        { const gl = takeB(x => /frameless-glass/.test(x.pid || '')); if (gl) { const kit = rowOf(gl).attrs.height || (p.glassScreen && p.glassScreen.height) || 12; const endOf = (nid) => { const J = nodes[nid]; const coh = J && J.type === 'inline' && new Set(J.legs.map(l => l.total)).size > 1; return coh ? E.GLASS.recessed.cohEnd : GLASS_END; }; const top = E.actualTop(trim, p), e0 = endOf(p.a), e1 = endOf(p.b), gh = GLASS_H[kit] || kit;
-          bodies.set(gl, { key: `G${wd}x${gh}x${e0}x${e1}`, x: 0, y: 0, rot: 0, z0: top + kit - gh, build: b3 => glass3(b3, wd, gh, e0, e1) }); } } // the glass top stands the kit height above the top cap (p64)
+        { const gl = takeB(x => /frameless-glass/.test(x.pid || '')); if (gl) { const clip = /clip/.test(gl.pid || ''), G = clip ? E.GLASS.clip : E.GLASS.recessed; const kit = rowOf(gl).attrs.height || (p.glassScreen && p.glassScreen.height) || 12; const endOf = (nid) => { const J = nodes[nid]; const coh = J && J.type === 'inline' && new Set(J.legs.map(l => l.total)).size > 1; return coh ? G.cohEnd : (clip ? G.end : GLASS_END); }; const top = E.actualTop(trim, p), e0 = endOf(p.a), e1 = endOf(p.b), gh = clip ? G.height : (GLASS_H[kit] || kit); /* clip: 11 3/4" glass, 1/8" / 5/8" ends (p68) */
+          bodies.set(gl, { key: `G${wd}x${gh}x${e0}x${e1}`, x: 0, y: 0, rot: 0, z0: top + E.glassAbove({ attach: clip ? 'clip' : 'recessed', height: kit }) - gh, build: b3 => glass3(b3, wd, gh, e0, e1) }); } } // recessed: the glass top stands the kit height above the top cap, the rest in the cap slot (p64); clip: the pane rests on the cap
         const placed = []; const bodyDone = new Set();
         const unitBlock = (l, i) => { const body = bodies.get(l) && !bodyDone.has(l) ? (bodyDone.add(l), bodies.get(l)) : null;
           const u = body ? { nm: block(l.style, `T|${body.key}`, b => { pt(b, 'A-FURN-POINT-PART', [0, 0]); partAttdefs(b, 'A-FURN-POINT-PART-T'); }, b3 => body.build(b3)), x: body.x, y: body.y, rot: body.rot, z: body.z0 }
@@ -283,7 +288,7 @@
       }
       const cfg = configs[sig];
       for (const l of nested) left.set(l, 0); // placed inside the config block, once per panel that uses it
-      top.push({ name: cfg.name, x: ins[0], y: ins[1], rot: r, layer: 'A-FURN', attribs: { CAPSTD: cfg.id + ' ' + wd, CAPSTDTITLE: ascii(cfg.title), CAPPANELCAT: 'TSA', CAPPANELNAME: cfg.id, CAPPANELCONFIG: '', CAPPANELWIDTH: wd.toFixed(6), CAPPANELHEIGHT: ht.toFixed(6), CAPALIAS1: stationOf(p.id), CAPALIAS2: p.label || '', CAPALIAS3: '' } });
+      top.push({ name: cfg.name, x: ins[0], y: ins[1], rot: r, layer: 'A-FURN', attribs: { CAPSTD: cfg.id + ' ' + wd, CAPSTDTITLE: ascii(cfg.title), CAPPANELCAT: (opts.catalog || 'TSA').replace(/\*$/, ''), CAPPANELNAME: cfg.id, CAPPANELCONFIG: '', CAPPANELWIDTH: wd.toFixed(6), CAPPANELHEIGHT: ht.toFixed(6), CAPALIAS1: stationOf(p.id), CAPALIAS2: p.label || '', CAPALIAS3: '' } });
       // power parts beside the panel, on its right face
       const pu = []; for (const l of power) for (let i = 0; i < l.qty; i++) pu.push(l);
       pu.forEach((l, i) => { const q = rot2(r, wd * (i + 1) / (pu.length + 1), -2.5); place(l, pointBlock(l.style, 'A-FURN-P-POWR'), ins[0] + q[0], ins[1] + q[1], r, '', { CAPALIAS1: stationOf(p.id) }); });

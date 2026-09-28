@@ -47,6 +47,6 @@ const { chromium } = require('playwright');
   await pg.click('[data-stage="spec"]'); await pg.waitForTimeout(300); await pg.screenshot({ path: 'test/p_ws_spec.png', fullPage: false });
   const specText = await pg.textContent('#specBody'); console.log('spec has Worksurface group:', /Worksurface/.test(specText), 'Supports:', /Supports/.test(specText), 'Storage:', /Storage/.test(specText));
   const R2 = await pg.evaluate(() => { const R = window.ANSWER.generate(window.answerDebug.P()); return { err: R.errors, warn: R.warnings.map(w => w.msg) }; }); console.log('final issues:', JSON.stringify(R2));
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

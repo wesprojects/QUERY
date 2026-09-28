@@ -18,5 +18,5 @@ const { chromium } = require('playwright');
     await pg.waitForTimeout(100); const box = await pg.locator('#plan').boundingBox(); await pg.screenshot({ path: `test/overlap/cap_${nm}.png`, clip: { x: box.x + box.width / 2 - 90, y: box.y + box.height / 2 - 90, width: 180, height: 180 } });
     if (gap.length) bad++; console.log(nm, gap.length ? 'GAP ' + gap.join('; ') : 'no gaps');
   }
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(bad ? bad + ' JUNCTIONS WITH GAPS' : 'ALL CLEAN'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(bad ? bad + ' JUNCTIONS WITH GAPS' : 'ALL CLEAN'); if (bad) process.exitCode = 1; await b.close();
 })();

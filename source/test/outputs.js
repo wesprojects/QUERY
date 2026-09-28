@@ -114,7 +114,7 @@ const fs = require('fs');
   // round trip keeps finishes
   const fin = await pg.evaluate(() => JSON.stringify(window.answerDebug.P().finishes)); await pg.reload(); await pg.waitForTimeout(500);
   ok('finishes survive reload', fin === await pg.evaluate(() => JSON.stringify(window.answerDebug.P().finishes)));
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   console.log(fails || errs.length ? `\n${fails} FAILURES` : '\nALL PASS');
   await b.close(); process.exit(fails || errs.length ? 1 : 0);
 })();

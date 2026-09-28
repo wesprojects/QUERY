@@ -1,5 +1,5 @@
-/* ANSWER configurator engine — Steelcase Answer panels, Thin trim (primary) and Oval trim.
-   Data: catalog.json extracted from the Answer Solutions Specification Guide, Feb 2015.
+/* QUERY configurator engine (formerly ANSWER) — Steelcase Answer panels, Thin trim (primary) and Oval trim.
+   Data: catalog.json extracted from the Answer Solutions Specification Guide, June 2022 (a citation written "2015 pNN" is the February 2015 guide).
    All rules cite guide pages in comments. American English throughout. */
 (function (root) {
   'use strict';
@@ -8,7 +8,27 @@
   let RUN = null; // per-generate state: { errors, cohFramed:Set } (set in E.generate)
   const runError = (e) => { if (RUN) RUN.errors.push(e); };
 
+  // Price adjustment (p1): "A price adjustment of 9% will be implemented across the board ... effective July 18, 2022. This price adjustment applies
+  // to the products, options, surface materials, and customer service parts ... The adjustment is NOT reflected in this June specification guide."
+  // Applied at the owner's direction (2026-09-27). catalog.json keeps the printed June 2022 list; E.init raises every printed price once: base prices,
+  // option prices and bands, row adders, edge and suffix prices, matrix cells. Each is multiplied and rounded to the nearest dollar on its own, in the
+  // order p1 prints for factor pricing ("Multiply the base price and each option ... Round each to the nearest dollar. Add base and options").
+  E.PRICE_ADJUST = { factor: 1.09, effective: 'July 18, 2022', page: 1, label: 'June 2022 list + 9% (July 18, 2022)' };
+  E.adjustPrice = (n) => (typeof n === 'number' && isFinite(n) && n !== 0) ? Math.sign(n) * Math.round(Math.abs(n) * E.PRICE_ADJUST.factor) : n;
+  function adjustCatalog(catalog) {
+    const f = E.adjustPrice, each = (o) => { if (o && typeof o === 'object') for (const k in o) if (typeof o[k] === 'number') o[k] = f(o[k]); };
+    for (const p of catalog.products) {
+      for (const o of p.options || []) { if (typeof o.price === 'number') o.price = f(o.price); each(o.priceBy); }
+      for (const r of p.rows) {
+        if (typeof r.price === 'number') r.price = f(r.price);
+        each(r.adders); each(r.priceByEdge); each(r.priceBySuffix);
+        if (r.priceMatrix && Array.isArray(r.priceMatrix.prices)) r.priceMatrix.prices = r.priceMatrix.prices.map(x => Array.isArray(x) ? x.map(f) : f(x));
+      }
+    }
+    catalog.priceAdjusted = E.PRICE_ADJUST;
+  }
   E.init = function (catalog) {
+    if (!catalog.priceAdjusted) adjustCatalog(catalog); // once per catalog object (Node caches a required catalog.json)
     CAT = catalog; BYID = {}; BYSTYLE = {};
     for (const p of catalog.products) {
       BYID[p.id] = p;
@@ -21,25 +41,28 @@
   E.products = () => CAT.products;
   E.rowsByStyle = (s) => BYSTYLE[s] || [];
 
-  // ---------- constants (June 2022 guide: p22, p25, p30, p39, p66, p94) ----------
-  // Panel heights p22; the 36"H panel is a thin-trim height (its junctions, trims and stackers are in the thin-trim pages only, p360-p396;
-  // the square and oval sections p100-p138 list 30, 42, 48, 54, 66, 78).
+  // ---------- constants (June 2022 guide: p16, p20, p30, p32, p58, p90) ----------
+  // Panel heights p16; the 36"H panel is a thin-trim height (its junctions, trims and stackers are in the thin-trim pages only, p352-p386;
+  // the square and oval sections, p85-p116 and p429-p466, list 30, 42, 48, 54, 66, 78).
   E.HEIGHTS = [30, 36, 42, 48, 54, 66, 78];
   E.HEIGHTS_BY_TRIM = { thin: [30, 36, 42, 48, 54, 66, 78], square: [30, 42, 48, 54, 66, 78], oval: [30, 42, 48, 54, 66, 78] };
   E.heightsFor = (trim) => E.HEIGHTS_BY_TRIM[trim] || E.HEIGHTS;
   E.WIDTHS = [18, 24, 30, 36, 42, 48, 60, 72];
-  E.STACK_HEIGHTS = [6, 12, 18, 24];      // p39: 6 3/16", 12 3/8", 18 1/2", 24 3/4"
-  E.COH_TRIM_HEIGHTS = [12, 18, 24, 30, 36];      // square and oval standard change-of-height trims (2022 p96, 2022 p452-2022 p453)
-  E.COH_TRIM_HEIGHTS_THIN = [6, 12, 18, 24, 30, 36]; // 2022 p24: thin-trim change-of-height trims 6"H to 36"H (the 6"H trim is new in 2022, 2022 p383)
+  E.STACK_HEIGHTS = [6, 12, 18, 24];      // p32: 6 3/16", 12 3/8", 18 1/2", 24 3/4"
+  E.COH_TRIM_HEIGHTS = [12, 18, 24, 30, 36];      // square and oval standard change-of-height trims (p96, p452-p453)
+  E.COH_TRIM_HEIGHTS_THIN = [6, 12, 18, 24, 30, 36]; // p24: thin-trim change-of-height trims 6"H to 36"H (the 6"H trim is new in 2022, p383)
   E.SKIN_HEIGHTS = [12, 18, 24, 30, 36, 42, 48, 60];
-  // heights offered per material (p434-461); windows p510
+  // heights offered per material (skins p470-p507); windows p510
   E.SKIN_HEIGHTS_BY_TYPE = { 'tackable acoustical': [12, 18, 24, 30, 36, 42, 48, 60], 'performance tackable acoustical': [12, 18, 24, 30, 36, 42, 48, 60], steel: [12, 18, 24, 30, 36], laminate: [12, 18, 24, 30, 36, 42, 48, 60], wood: [12, 18, 24, 30, 36, 42, 48, 60], markerboard: [12, 18, 24, 30, 36], slatwall: [12, 18, 24], technology: [6, 12, 18], window: [12, 18, 24], 'back painted glass': [12, 18, 24, 30, 36] };
-  E.TO_FLOOR_MIN = 24; // to-the-floor skins start at 24"H (p436-449)
+  E.TO_FLOOR_MIN = 24; // to-the-floor skins start at 24"H (fabric p472-473, steel p478-479, markerboard p483, laminate p487, wood p490-491, wood sets p496, back painted glass p502)
   E.skinHeightsFor = (seg) => E.SKIN_HEIGHTS_BY_TYPE[seg.kind === 'window' ? 'window' : seg.type] || E.SKIN_HEIGHTS;
   // build a valid default skin stack for a target height (panel height - 6)
   E.defaultSegs = function (target, type) {
     const hs = E.SKIN_HEIGHTS_BY_TYPE[type] || E.SKIN_HEIGHTS;
     if (hs.includes(target)) return [{ kind: 'skin', type, height: target }];
+    // a 6" space (the 6"H stacker tier) takes the only 6"H skin, the steel technology skin, without cutouts: "6"H technology skins with no cutouts
+    // can be used in any 6" position on the panel with the exception of the bottom 12" of the panel" (p139; skins p505)
+    if (target === 6) return [{ kind: 'skin', type: 'technology', height: 6, cutouts: 'None' }];
     const desc = hs.slice().sort((a, b) => b - a);
     for (const a of desc) for (const b of desc) if (a + b === target && a >= b) return [{ kind: 'skin', type, height: a }, { kind: 'skin', type, height: b }];
     for (const a of desc) for (const b of desc) for (const c of desc) if (a + b + c === target) return [{ kind: 'skin', type, height: a }, { kind: 'skin', type, height: b }, { kind: 'skin', type, height: c }];
@@ -63,11 +86,12 @@
     if (tot < target) { const fill = E.defaultSegs(target - tot, fallbackType); if (sum(fill.map(x => x.height)) === target - tot) { segs.push(...fill); return true; } }
     segs.splice(0, segs.length, ...E.defaultSegs(target, fallbackType)); return true;
   };
-  // stack combinations allowed for a base height (2022 p34: max 36" of stacking, two stackers, 90" total; a 6"H stacker sits on a base junction only,
-  // never on or under another stacking junction)
-  E.stackOptions = function (baseH) {
+  // stack combinations allowed for a base height (p34: max 36" of stacking, two stackers, 90" total; a 6"H stacker sits on a base junction only,
+  // never on or under another stacking junction). The 6"H stacker is thin trim only: square and oval stacking junctions and stacking
+  // change-of-height trims come 12/18/24"H (p441-p444, p454).
+  E.stackOptions = function (baseH, trim) {
     const all = [[], [6], [12], [18], [24], [12, 12], [18, 18], [24, 12], [12, 24]];
-    return all.filter(st => baseH + st.reduce((a, b) => a + b, 0) <= E.MAX_HEIGHT);
+    return all.filter(st => baseH + st.reduce((a, b) => a + b, 0) <= E.MAX_HEIGHT && (!trim || trim === 'thin' || !st.includes(6)));
   };
   // 2022 p34 rules for the 6"H stacking junction: no stacking horizontal beam, nothing hung from it, no frameless glass, top cap screens or top cap
   // mounted storage on it, no window in the top position of a segment that has one, no 12"H slatwall skin on top of it, base junctions only
@@ -75,9 +99,9 @@
   // receptacle locations per side for a powerkit width (p189)
   E.TECH_CUTOUTS = { All: 'All cutouts', Right: 'Right-hand cutout only', Left: 'Left-hand cutout only', None: 'No cutouts' }; // UI value -> catalog attr (p505)
   E.powerBlocksPerSide = function (width) { const r = (BYID['wc-powerkit'] || { rows: [] }).rows.find(x => x.attrs.width === width); return r ? r.attrs.receptaclesPerSide : 0; };
-  E.MAX_STACK = 36;        // p33, p100
-  E.MAX_STACKERS = 2;      // p33, p100
-  E.MAX_HEIGHT = 90;       // p33, p148
+  E.MAX_STACK = 36;        // p34 (thin), p102 (square and oval)
+  E.MAX_STACKERS = 2;      // p34, p102
+  E.MAX_HEIGHT = 90;       // p34, p102, p148
   E.SKIN_TRIM_ALLOWANCE = 6; // p19: skin height total = panel height - 6"
   E.BASE_TRIM_H = 3.75; // p58
   // the top cap snaps onto the top of the skins (p58, p104): a flat 3"-deep plate whose thin lips are all that shows on the face for thin trim, a taller rounded cap for oval (2015 p89 figure).
@@ -86,9 +110,9 @@
   // (p16 54 1/4" vs p37 53 5/8"), and the trim meets the underside of the cap. oval: estimate, the guide gives no oval cap height (2015 p89).
   E.CAP_FACE = { thin: 0.625, oval: 1 };
   E.ACTUAL = { // p16 actual panel heights, p20 junction heights, p58 bar widths (thin)
-    panelHeight: { 30: '29 1/2"', 36: '35 11/16"', 42: '41 7/8"', 48: '48 1/16"', 54: '54 1/4"', 66: '66 19/32"', 78: '78 31/32"' }, // 2022 2022 p16
+    panelHeight: { 30: '29 1/2"', 36: '35 11/16"', 42: '41 7/8"', 48: '48 1/16"', 54: '54 1/4"', 66: '66 19/32"', 78: '78 31/32"' }, // p16
     ovalPanelHeight: { 30: '29 3/8"', 42: '41 3/4"', 48: '47 15/16"', 54: '54 1/8"', 66: '66 15/32"', 78: '78 27/32"' },
-    junctionHeight: { 30: '28 7/16"', 36: '34 5/8"', 42: '40 3/4"', 48: '47"', 54: '53 1/8"', 66: '65 1/2"', 78: '77 3/8"' }, // 2022 2022 p20
+    junctionHeight: { 30: '28 7/16"', 36: '34 5/8"', 42: '40 3/4"', 48: '47"', 54: '53 1/8"', 66: '65 1/2"', 78: '77 3/8"' }, // p20
     thinBarWidth: { 18: '17 13/16"', 24: '23 13/16"', 30: '29 13/16"', 36: '35 13/16"', 42: '41 13/16"', 48: '47 13/16"', 60: '59 13/16"', 72: '71 13/16"' },
     ovalBarWidth: { 18: '17 15/16"', 24: '23 15/16"', 30: '29 15/16"', 36: '35 15/16"', 42: '41 15/16"', 48: '47 15/16"', 60: '59 15/16"', 72: '71 15/16"' },
     depth: '3"', glideRange: '2 3/4"',
@@ -101,7 +125,7 @@
   E.cap120 = (cx, cy, a0) => [0, 1, 2].map(k => { const t = (a0 + 60 + 120 * k) * Math.PI / 180, r = 2 * E.CAP120_IN; return [cx + Math.cos(t) * r, cy + Math.sin(t) * r]; }); // vertices on the bisectors between legs, a0 = a leg's angle (deg)
   E.JUNCTION_W = 1.5; // an in-line junction is 3" deep and 1 1/2" along the run, centered on the module line: the 48" panel frame is 46 1/2" between junctions (p30)
   // An end-of-run junction post is 3/4" along the run and sits inside the panel's nominal width, so only its trim adds to the footprint (p20 +1/2" thin,
-  // p92 +1" oval). p45 top view (to scale along the run): a 3" in-line junction is post + block + post = 3/4" + 1 1/2" + 3/4". A wall-start junction
+  // p92 +1" oval). p46 top view (to scale along the run): a 3" in-line junction is post + block + post = 3/4" + 1 1/2" + 3/4". A wall-start junction
   // adds 3/16" (p21, thin). Corner junctions are drawn as their 3" block (junction depth 3", p20) plus a 3/4" post on each leg (see CORNER_ALLOW).
   E.EOR_POST = 0.75;
   E.CORNER_POST = 3;
@@ -131,29 +155,36 @@
     return { in: ca + E.EOR_POST, out: E.CORNER_POST / 2, post: [-E.CORNER_POST / 2, ca + E.EOR_POST], ca };
   };
   // actual heights for drawing (p16 thin, p90 oval: floor to top of top cap, glides retracted); stacking junctions add 12 3/8", 18 1/2", 24 3/4" (p32, p100)
-  E.ACTUAL_H = { thin: { 30: 29.5, 36: 35.6875, 42: 41.875, 48: 48.0625, 54: 54.25, 66: 66.59375, 78: 78.96875 }, oval: { 30: 29.375, 42: 41.75, 48: 47.9375, 54: 54.125, 66: 66.46875, 78: 78.84375 } }; // 2022 2022 p16 (thin), 2022 p90 (oval)
-  E.STACK_ACTUAL = { 6: 6.1875, 12: 12.375, 18: 18.5, 24: 24.75 }; // 2022 2022 p32
+  E.ACTUAL_H = { thin: { 30: 29.5, 36: 35.6875, 42: 41.875, 48: 48.0625, 54: 54.25, 66: 66.59375, 78: 78.96875 }, oval: { 30: 29.375, 42: 41.75, 48: 47.9375, 54: 54.125, 66: 66.46875, 78: 78.84375 } }; // p16 (thin), p90 (oval)
+  E.STACK_ACTUAL = { 6: 6.1875, 12: 12.375, 18: 18.5, 24: 24.75 }; // p32
   E.actualBaseHeight = (trim, h) => (E.ACTUAL_H[trim] || E.ACTUAL_H.thin)[h] || h;
   E.actualTop = (trim, p) => E.actualBaseHeight(trim, p.height) + (p.stack || []).reduce((a, st) => a + (E.STACK_ACTUAL[st] || st), 0);
   E.TOP_CAP_SCREENS = { universal: { heights: [13.5, 19.5], screen: { 13.5: 13.5, 19.5: 19.5 } }, sarto: { heights: [13.5, 19.5], screen: { 13.5: 12.5, 19.5: 18.5 } } }; // 2022 p70, p72
   E.topCapScreenHeight = (sc) => sc ? (E.TOP_CAP_SCREENS[sc.kind] || E.TOP_CAP_SCREENS.universal).screen[sc.height] || sc.height : 0;
-  E.OPEN_BASE = { height: 3.25, opening: 2.5 }; // open base trims occupy the bottom 3 1/4"; the opening is 2 1/2" high (p59, 2015 p89)
+  E.OPEN_BASE = { height: 3.75, opening: 2.5 }; // p59: "Open base trims occupy the bottom 3 3/4" of the panel; the height of the opening is 2 1/2"" (the 2015 guide printed 3 1/4")
   // frameless glass (thin): glass heights for the 12/18/24" screens (p64), clip 11 3/4" (p68); per-end clearance from the junction center:
   // half the gap between adjacent screens (1/8" recessed p64, 1/4" clip p68); at a change-of-height end the glass stops 1/2" (recessed, 47 7/16" for 48")
   // or 5/8" (clip, 47 1/4") from the junction center (p64, p68)
-  // 2022 2022 p64: the 6"/12"/18"/24"H recessed kits (2022 p396-2022 p398) carry 9 5/16", 15 1/2", 21 11/16", 27 7/8" of glass (keyed by kit height; the 2015
+  // p64: the 6"/12"/18"/24"H recessed kits (p396-p398) carry 9 5/16", 15 1/2", 21 11/16", 27 7/8" of glass (keyed by kit height; the 2015
   // table keyed 12/18/24 and printed 21 5/8" for the 18" kit)
   E.GLASS = { recessed: { heights: { 6: 9.3125, 12: 15.5, 18: 21.6875, 24: 27.875 }, end: 1 / 16, cohEnd: 0.5 }, clip: { height: 11.75, end: 0.125, cohEnd: 0.625 } };
   E.GLASS_KITS = [6, 12, 18, 24];
+  // back painted glass skin colors (p727 "Applies to: Back painted glass skins"); the color is required to specify (p500)
+  E.BACK_PAINTED_GLASS_COLORS = [['6521', 'Truffle'], ['6571', 'Aubergine'], ['6575', 'Peacock'], ['6576', 'Jungle'], ['6577', 'Merlot'], ['6578', 'Lagoon'], ['6579', 'Saffron'], ['6581', 'Blue Jay'], ['6584', 'Tangerine'], ['6586', 'Green Citrine'], ['6588', 'Purple Berry'], ['6589', 'Mercury'], ['6591', 'Merle'], ['6593', 'Greyscale'], ['6595', 'Winter'], ['6597', 'Honey'], ['6BB1', 'Cloud'], ['6BB2', 'Rose Quartz'], ['6BB3', 'Olivine'], ['6BB4', 'Electric Indigo']];
   E.glassHeight = (g) => g.attach === 'clip' ? E.GLASS.clip.height : (E.GLASS.recessed.heights[g.height] || g.height);
-  E.TOP_SCREEN = { height: 12, inset: 1.25 }; // oval panel top screen: 12"H, 27 1/2"–45 1/2"W on 30"–48" panels, 1 1/4" in from each end (p111, 2015 p97)
-  // change-of-height trim width drawn over the lower panel: oval slim profile 1 1/8", cable-routing 2 1/4" (p95); thin: half the junction (the guide gives no width)
+  // How the glass stands on the panel (owner's decision 2026-09-28; the guide prints the pane heights but not how much shows above the cap):
+  // a recessed pane drops into the kit's top cap slot, held by supports below the cap (p64), with its top the kit height above the top cap
+  // (12" kit: 15 1/2" pane, 12" above the cap, 3 1/2" recessed). A clip-on pane rests on the top cap (p68 gives no mounting height).
+  E.glassAbove = (g) => g.attach === 'clip' ? E.GLASS.clip.height : g.height;
+  E.glassRecess = (g) => E.glassHeight(g) - E.glassAbove(g);
+  E.TOP_SCREEN = { height: 12, inset: 1.25 }; // oval panel top screen: 12"H, 27 1/2"–45 1/2"W on 30"–48" panels, 1 1/4" in from each end (p113, 2015 p97)
+  // change-of-height trim width drawn over the lower panel: oval slim profile 1 1/8", cable-routing 2 1/4" (p96); thin: half the junction (the guide gives no width)
   E.cohTrimWidth = (P) => P.trim === 'oval' ? (/cable/i.test((P.options || {}).ovalCohProfile || '') ? 2.25 : 1.125) : E.JUNCTION_W / 2;
   E.WS_THICK = 1.1875; // worksurface thickness 1 3/16" (p222)
   E.PED_INSET = 0.5;   // pedestal set in from the worksurface end, plan and elevation alike. No guide basis (drawing choice).
 
   // ---------- helpers ----------
-  const HD = { 30: '3', 42: '4', 48: '8', 54: '5', 66: '6', 78: '7', 90: '9' }; // style-number height digits (p25)
+  const HD = { 30: '3', 36: 'Q', 42: '4', 48: '8', 54: '5', 66: '6', 78: '7', 90: '9' }; // style-number height digits (p26)
   E.heightDigit = (h) => HD[h];
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const uniq = (a) => [...new Set(a)];
@@ -344,7 +375,7 @@
     if (p.width < 24 && p.power.kind === 'powerkit') p.power.kind = 'passthrough';
     if (p.power.kind === 'powerkit') { const cap = E.powerBlocksPerSide(p.width); for (const s of [0, 1]) { p.power.receptacles[s] = Math.max(0, Math.min(cap, p.power.receptacles[s] | 0)); p.power.usb[s] = Math.max(0, Math.min(cap - p.power.receptacles[s], p.power.usb[s] | 0)); } }
     const notes = []; const nm = 'Panel ' + String(p.id).replace(/^P/, '');
-    if (p.skinsToFloor) { for (const s of [0, 1]) { const b = p.sides[s][0]; if (b.kind === 'window' || b.type === 'slatwall' || b.type === 'technology' || b.height < E.TO_FLOOR_MIN) p.skinsToFloor = false; } if (!p.skinsToFloor) notes.push(`${nm}: skins can run to the floor only when the bottom tile on both sides is a fabric, steel, laminate, wood or markerboard skin 24" or taller (p19, p436-449).`); }
+    if (p.skinsToFloor) { for (const s of [0, 1]) { const b = p.sides[s][0]; if (b.kind === 'window' || b.type === 'slatwall' || b.type === 'technology' || b.height < E.TO_FLOOR_MIN) p.skinsToFloor = false; } if (!p.skinsToFloor) notes.push(`${nm}: skins can run to the floor only when the bottom tile on both sides is a fabric, steel, laminate, wood, markerboard or back painted glass skin 24" or taller (p19; to-the-floor skins p472-p502).`); }
     // settings one trim style does not offer are kept aside, not deleted, and come back when the job returns to that trim
     p.topCap = p.topCap || { wood: false, omit: false };
     if (P.trim !== 'thin') {
@@ -486,6 +517,8 @@
     const l = Object.assign({ cat, qty, style: row ? row.style : extra.style, desc, spec: spec || '', unit: row ? row.price : (extra.unit || 0), page: (row && (row.page || (row.attrs && row.attrs.page))) || (product ? product.pages[0] : ((extra && extra.page) || '')), pid: product ? product.id : '', notes: [], flags: [], src: '', optPrices: [] }, extra || {});
     if (row && row.correction) l.flags.push('CORRECTED: ' + row.correction);
     if (row && row.note) l.notes.push(row.note);
+    if (row && (row.discontinued2022 || row.culled2022)) l.flags.push(`${row.style} is ${row.discontinued2022 ? 'not in the June 2022 guide (discontinued)' : 'marked to be culled in the June 2022 guide'}${row.culledDate ? ', last order entry ' + row.culledDate : ''}. Verify with Steelcase before ordering.`);
+    if (!l.style) { l.style = '—'; l.flags.push(`No style number: the guide has no ${desc || 'part'} for this size or trim.`); }
     return l;
   }
   // A part sold only in packages (p387-388: aligners by 10 or 4, light seals by 4) is listed where it goes as pieces, unpriced
@@ -537,8 +570,8 @@
         if (pg) addOpt(l, prod, pg, row, `paint group ${F.trimPaint.group}`);
         lines.push(l);
       } else {
-        // change-of-height trims (2022 p383-2022 p385): split spans > 36 or non-standard. The guide's own example trims a 42" change of height as 30 + 12
-        // (2015 2022 p43); the 6"H trim (2022 2022 p24, 2022 p383) is used only where the difference needs it, so the split is tried without it first.
+        // change-of-height trims (p383-p385): a span over 36" or between sizes is trimmed with two or more trims stacked. The split prefers the
+        // 12"-36"H trims and uses the 6"H trim (p24, p383) only where the difference needs it, so it is tried without the 6"H trim first.
         const parts0 = splitSpan(span, E.COH_TRIM_HEIGHTS); const parts = parts0.flag ? splitSpan(span, E.COH_TRIM_HEIGHTS_THIN) : parts0;
         if (parts.flag) { const msg = `A ${span}" change-of-height (${pc.from}"→${pc.to}") cannot be trimmed: change-of-height trims come 6/12/18/24/30/36"H (2022 p383-385). Change a panel height.`; lines.push(Line('Trim', 0, null, null, `Change-of-height ${span}" cannot be trimmed`, '', { style: '—', unit: 0, flags: [msg], src: ctx })); runError({ node: ctx, msg }); }
         let at0 = pc.from;
@@ -548,7 +581,7 @@
           const row = findRow(pid, r => r.attrs.stackHeight === h && (ct ? r.attrs.cornerType === ct : true) && (wood ? r.style.endsWith('W') : !r.style.endsWith('W')));
           if (!row) { lines.push(Line('Trim', 1, null, prod, `${nm} ${h}"H`, finish, { style: '—', flags: ['Not found in guide'], src: ctx })); continue; }
           const l = Line('Trim', 1, row, prod, `${nm} ${h}"H (${parts.split ? `${at0}"→${at0 + h}" of ` : ''}${pc.from}"→${pc.to}") — Thin`, finish, { src: ctx }); at0 += h;
-          if (parts.split) l.notes.push(`No single ${span}" change-of-height trim: two or more trims stacked, ${parts.parts.join('" + ')}" (12/18/24/30/36"H available, p383-385).`);
+          if (parts.split) l.notes.push(`No single ${span}" change-of-height trim: two or more trims stacked, ${parts.parts.join('" + ')}" (6/12/18/24/30/36"H available, p383-385).`);
           if (pg) addOpt(l, prod, pg, row, `paint group ${F.trimPaint.group}`);
           lines.push(l);
         }
@@ -572,10 +605,11 @@
     if (plan.ltAligner) lines.push(pieceLine('Junction', 1, findRow('thin-junction-cap-and-trim-aligners', r => r.style === 'TS7LTA4'), BYID['thin-junction-cap-and-trim-aligners'], 'L to T vertical trim aligner', 'black plastic', ctx));
     if (plan.vAligner) lines.push(pieceLine('Junction', 1, findRow('thin-junction-cap-and-trim-aligners', r => r.style === 'TS7120VA4'), BYID['thin-junction-cap-and-trim-aligners'], '120° to V vertical trim aligner', 'black plastic', ctx));
   }
-  // a stacked span in stacking junction heights: 12/18/24" combine (p41: at most two, 36" in all); the 6"H stacker stands alone on a base
-  // junction (p41), so it is used only when the span is exactly 6". The same sizes are the oval stacking change-of-height trims (p496).
+  // a stacked span in stacking junction heights: 12/18/24" combine (p34: at most two, 36" in all); the 6"H stacking junction "can be placed only on
+  // base junction. It cannot be used on top of another stacking junction" (p34), so a 6" span is built only when the caller says it starts on a base
+  // junction (onBase). The same 12/18/24 sizes are the square and oval stacking change-of-height trims (p454).
   const STACK_SPLIT = [12, 18, 24];
-  function stackSplit(span) { return span === 6 ? { parts: [6], flag: false, split: false } : splitSpan(span, STACK_SPLIT); }
+  function stackSplit(span, onBase) { return span === 6 ? (onBase ? { parts: [6], flag: false, split: false } : { parts: [], flag: true, split: false, six: true }) : splitSpan(span, STACK_SPLIT); }
   E.stackSplit = stackSplit;
   // exact split of a span into available sizes: fewest pieces, then largest pieces first (e.g. 42 -> 24+18, 30 -> 18+12).
   // flag is true only when no combination exists (parts is then empty); a possible split is never flagged here.
@@ -629,7 +663,7 @@
   function stackingPieces(J, lines, P, ctx, coversUpTo) {
     // stacking junction hardware by band above each leg's base (p48-51); coversUpTo(leg) = height already covered by the base junction hardware
     const fam = J.family, legs = J.legs;
-    // band edges at every stacker top so each stacking junction matches a real stacker (p33: one junction per 12/18/24 stacker)
+    // band edges at every stacker top so each stacking junction matches a real stacker (p32-p34: one junction per 6/12/18/24 stacker)
     const tops = legs.flatMap(l => l.stack.map((s, k) => l.base + sum(l.stack.slice(0, k + 1))));
     // cut only at the stacked legs' own tiers (p49 Step 7: look at each stacked panel individually); an unstacked neighbor's top is a
     // post beside the stacker, not a reason to split it (a 48"+12" stacker next to a 54" panel is one 12" stacking junction, not 6"+6")
@@ -650,7 +684,12 @@
       if (fam === 120) type = slots.length === 3 ? 'Y' : slots.length === 2 ? 'V' : 'EOR';
       else if (slots.length === 4) type = 'X'; else if (slots.length === 3) type = 'T'; else if (slots.length === 2) type = Math.abs(slots[0] - slots[1]) === 2 ? 'inline' : 'L'; else type = J.node.wallStart && J.type === 'wall' ? 'wall' : 'EOR';
       // p375: the 36" end-of-run stacker is for build-your-own in-line change-of-height only, never as a stacking junction
-      const parts = stackSplit(span);
+      // a 6" band is a 6"H stacking junction only where it starts on a base junction (p34): at each stacked leg's own base, and not on the taller
+      // panel of an in-line change-of-height junction, whose upper part is an end-of-run stacking junction (p357 "Junction includes: In-line base
+      // junction, End-of-run stacking junction")
+      const minLegBase = Math.min(...legs.map(l => l.base));
+      const onBase = stackLegs.every(l => l.base === lo && l.stack[0] === 6 && !(J.type === 'inline' && l.base > minLegBase));
+      const parts = stackSplit(span, onBase);
       // p49 Step 7 (Note 1, 3): an in-line pair of stackers over a thin T or X base takes one end-of-run stacking junction per panel, tied with junction blocks (p50 Step 9)
       const eorPair = P.trim === 'thin' && type === 'inline' && J.type !== 'inline';
       for (const leg of eorPair ? stackLegs : [null]) {
@@ -660,7 +699,7 @@
           at += h;
         }
       }
-      if (parts.flag) { const msg = `A ${span}" stacking band (${lo}"→${hi}") at ${ctx} cannot be built: stacking junctions are 12/18/24"H (p375-376).`; lines.push(Line('Stacking', 0, null, null, `Stacking band ${span}" cannot be built`, '', { style: '—', unit: 0, flags: [msg], src: ctx })); runError({ node: ctx, msg }); }
+      if (parts.flag) { const msg = parts.six ? `A 6" stacking band (${lo}"→${hi}") at ${ctx} cannot be built: the 6"H stacking junction can be placed only on a base junction, never on top of another stacking junction (p34), and other stacking junctions are 12/18/24"H (p375-376).` : `A ${span}" stacking band (${lo}"→${hi}") at ${ctx} cannot be built: stacking junctions are 12/18/24"H (p375-376).`; lines.push(Line('Stacking', 0, null, null, `Stacking band ${span}" cannot be built`, '', { style: '—', unit: 0, flags: [msg], src: ctx })); runError({ node: ctx, msg }); }
       if (eorPair && !posts.length) blocksNeeded += slots.length; // p50 Step 9: two stacking junctions adjacent in a corner
       if ((posts.length || beside.length) && fam) blocksNeeded += slots.length; // stacker adjacent to a post in a corner: blocks tie them (p50 Step 9)
     }
@@ -743,7 +782,7 @@
     }
     if (J.type === 'unsupported' || !J.family) return;
 
-    // ---- in-line change-of-height to a panel stacked to 90": pre-configured rows 54/90, 66/90, 78/90 (p25, p357) ----
+    // ---- in-line change-of-height to a panel stacked to 90": pre-configured rows 54/90, 66/90, 78/90 (p26, p357) ----
     if (J.type === 'inline') {
       const low = legs.find(l => !l.stack.length), tall = legs.find(l => l !== low);
       const row = low && tall.total === 90 && tall.base >= low.base ? findRow('thin-inline-change-of-height-junction', r => r.attrs.heightA === low.base && r.attrs.heightB === 90 && (wood ? r.style.endsWith('W') : !r.style.endsWith('W'))) : null;
@@ -871,7 +910,7 @@
     if (J.family === 90) lightSeals(J, plan, lines, ctx, J.type === 'X' ? 4 : J.type === 'T' ? 2 : 1);
   }
 
-  // ---------- OVAL junction BOM (2015 p76-81, p431-437, p375/376/443, p453-454) ----------
+  // ---------- OVAL junction BOM (2015 p76-81; p431-437 base junctions, p441-444 stacking junctions, p452-454 change-of-height trims) ----------
   function ovalJunctionBOM(P, J, lines, warn) {
     const F = P.finishes, ctx = J.node.id, legs = J.legs, woodCap = F.woodTrim;
     const bases = uniq(legs.map(l => l.base)).sort((a, b) => a - b);
@@ -904,20 +943,20 @@
     if (t !== 'inline') l.spec += (l.spec ? '; ' : '') + capSpec;
     if (bases.length > 1) l.notes.push(`Change-of-height: tallest-height junction shared by ${bases.join('"/')}" panels (2015 p81).`);
     lines.push(l);
-    // stacking junctions (include trim) p375/376/443. The shared oval junction is hJ tall (2015 p81), so stacking starts at hJ: fork connectors go into the
+    // stacking junctions (include trim) p441-444. The shared oval junction is hJ tall (2015 p81), so stacking starts at hJ: fork connectors go into the
     // top of the base junction (p100) and bars below hJ lock into its slots. Every stacking junction is the base junction's type (p93: "Base junctions
     // can accept a stacking junction of the same type only"); faces where a leg is not stacked are closed with change-of-height trim below.
-    // One stacking junction per stacker tier (cut at every tier top above hJ), 12/18/24"H (p375/376/443).
+    // One stacking junction per stacker tier (cut at every tier top above hJ), 12/18/24"H (p441-444).
     const topAll = Math.max(...legs.map(l2 => l2.total));
     if (anyStack && topAll > hJ) {
       const n0 = lines.length, st = t === 'inline' ? 'inline' : t;
       const cuts = uniq([hJ, ...legs.flatMap(l2 => l2.stack.map((s, i) => l2.base + sum(l2.stack.slice(0, i + 1)))).filter(x => x > hJ), topAll]).sort((a, b) => a - b);
       for (let i = 0; i < cuts.length - 1; i++) {
         const sp = stackSplit(cuts[i + 1] - cuts[i]); let at = cuts[i];
-        if (sp.flag) { const msg = `A ${cuts[i + 1] - cuts[i]}" stacking band (${cuts[i]}"→${cuts[i + 1]}") above the shared ${hJ}"H junction at ${ctx} cannot be built: oval stacking junctions are 12/18/24"H and start at the tallest base junction (2015 p81, p375/376/443). Change a panel height or stacker.`; lines.push(Line('Stacking', 0, null, null, `Stacking band ${cuts[i + 1] - cuts[i]}" cannot be built`, '', { style: '—', unit: 0, flags: [msg], src: ctx })); runError({ node: ctx, msg }); }
+        if (sp.flag) { const msg = `A ${cuts[i + 1] - cuts[i]}" stacking band (${cuts[i]}"→${cuts[i + 1]}") above the shared ${hJ}"H junction at ${ctx} cannot be built: oval stacking junctions are 12/18/24"H and start at the tallest base junction (2015 p81, p441-444). Change a panel height or stacker.`; lines.push(Line('Stacking', 0, null, null, `Stacking band ${cuts[i + 1] - cuts[i]}" cannot be built`, '', { style: '—', unit: 0, flags: [msg], src: ctx })); runError({ node: ctx, msg }); }
         for (const h of sp.parts) { pushStackingJunction(P, st, h, lines, ctx, `${at}"→${at + h}"`, null); at += h; }
       }
-      // p376/443: stacking L/T/V/end-of-run trim matches the base junction trim: wood trim is its own style (…PJSW), fabric is an option on steel trim
+      // p442-444: stacking L/T/V/end-of-run trim matches the base junction trim: wood trim is its own style (…PJSW), fabric is an option on steel trim
       const woodTr = F.ovalWoodTrim && woodCap;
       if (woodTr || F.ovalTrimFabric) for (const sl of lines.slice(n0)) {
         if (!/^so-stacking-(l-t-x|end-of-run|v-y)-junction$/.test(sl.pid)) continue;
@@ -930,9 +969,9 @@
     // change-of-height trims p453 (standard) / p454 (stacking). Per exposed face the lowest trim sits on the lower panel's top cap and is always
     // standard (rounded bottom edge, 36"H max, 2015 p80-81); it covers up to the first stacked tier. Above it stacking trims (straight bottom, 12/18/24"H),
     // one per stacked tier and for any height over 36" (2015 p81: "When stacking more than one panel … Only the second tier requires stacking change-of-height trim").
-    // One trim run per exposed face (p95: the trim is a single 1 1/8"W x 3"D channel in one junction face): every leg lower than the junction
+    // One trim run per exposed face (p96: the trim is a single 1 1/8"W x 3"D channel in one junction face): every leg lower than the junction
     // top exposes its face from its own top cap up to the junction top. Faces without a panel are closed by the base/stacking junction's own
-    // trim (p93, p376/443), so they take no change-of-height trim.
+    // trim (p93, p442-444), so they take no change-of-height trim.
     const profile = P.options.ovalCohProfile || 'Slim Profile';
     const app = (t === 'inline' || t === 'EOR') ? 'in-line application' : 'corner application';
     const tierTops = uniq(legs.flatMap(l2 => l2.stack.map((s, i) => l2.base + sum(l2.stack.slice(0, i + 1))))).sort((a, b) => a - b);
@@ -957,7 +996,7 @@
           if (!r2) { lines.push(Line('Trim', 1, null, prod2, `Standard change-of-height trim ${pt.h}"H — Oval (${band})`, '', { style: '—', flags: [`No ${pt.h}"H standard change-of-height trim (12/18/24/30/36 available, p453). Verify with Steelcase.`], src: ctx })); continue; }
           const l2 = Line('Trim', 1, r2, prod2, `Standard change-of-height trim ${pt.h}"H, ${profile}, ${woodCap ? 'wood' : 'plastic'} cap — Oval (${band})`, `${app}; ${F.ovalWoodTrim && !F.ovalTrimFabric ? '' : paintSpec(F) + '; '}${woodCap ? `wood cap ${F.wood.code} ${F.wood.name}` : `plastic cap ${(F.ovalCap || {}).code || '6000'} ${(F.ovalCap || {}).name || 'Black'}`}`, { src: ctx });
           if (F.ovalTrimFabric) addOpt(l2, prod2, 'fabricTrim', r2, `fabric trim ${F.fabric.code}`); else if (F.ovalWoodTrim) addOpt(l2, prod2, 'woodTrim', r2, `wood trim ${F.wood.code}`); else addOpt(l2, prod2, pg, r2, `paint group ${F.trimPaint.group}`);
-          if (lowFaces.length > 1) l2.notes.push(`${lowFaces.length} exposed faces at this junction: one trim per face (p95).`);
+          if (lowFaces.length > 1) l2.notes.push(`${lowFaces.length} exposed faces at this junction: one trim per face (p96).`);
           lines.push(l2);
         } else {
           const prod2 = BYID['so-stacking-change-of-height-trim'];
@@ -1045,11 +1084,12 @@
     if (canPackage && p.power.kind === 'powerkit' && W < 24) { warn.push({ panel: ctx, msg: '18"W panels accommodate pass-through power only (p407).' }); }
     // stackers: stacking horizontal frame package per tier + skins (p394, p62). A window tier needs no bar (p63), but when double stacking
     // at least one stacking junction must be connected with a horizontal beam (p63, p109, 2015 p119): keep the bar on tier 1 if every tier is a window.
+    // A 6"H tier takes no bar: "When using 6"H stacking junctions, a stacking horizontal beam is not needed" (p34).
     const tierWin = p.stack.map((s, i) => !!(p.stackSides[i] && p.stackSides[i].some(sd => sd.some(x => x.kind === 'window'))));
     const allWin = p.stack.length > 1 && tierWin.every(Boolean);
     p.stack.forEach((s, i) => {
       const sides = p.stackSides[i];
-      if (!tierWin[i] || (allWin && i === 0)) {
+      if (s !== 6 && (!tierWin[i] || (allWin && i === 0))) {
         const pid = thin ? 'thin-stacking-horizontal-frame-package' : 'sh-stacking-horizontal-frame-package';
         const r = findRow(pid, x => x.attrs.width === W);
         const l = Line('Frame', 1, r, BYID[pid], `Stacking horizontal frame package ${W}"W (tier ${i + 1}, ${s}"H)`, 'black paint', { src: ctx });
@@ -1064,7 +1104,10 @@
     let run = 0, maxRun = 0; for (const x of colA) { run = x.kind === 'window' ? run + 1 : 0; maxRun = Math.max(maxRun, run); }
     if (maxRun > 2) warn.push({ panel: ctx, msg: `${maxRun} glass windows stacked on top of each other. No more than two windows may be stacked (p140).` });
     const topB = p.sides[0][p.sides[0].length - 1], firstT = p.stack.length && p.stackSides[0] ? p.stackSides[0][0][0] : null;
-    if (topB && topB.kind === 'window' && topB.height === 24 && firstT && firstT.kind === 'window') warn.push({ panel: ctx, msg: 'A 24"H glass window in the top of a base panel cannot accommodate any windows stacked on top (p140).' });
+    const bigBaseWin = topB && topB.kind === 'window' && (topB.height === 18 || topB.height === 24) && firstT && firstT.kind === 'window';
+    if (bigBaseWin) warn.push({ panel: ctx, msg: `A ${topB.height}"H glass window in the top of a base panel cannot accommodate any windows stacked on top (p140).` });
+    // p140: "Only 12"H glass windows can be stacked on top of each other"
+    else if (colA.some((x, i) => i > 0 && x.kind === 'window' && colA[i - 1].kind === 'window' && (x.height !== 12 || colA[i - 1].height !== 12))) warn.push({ panel: ctx, msg: 'Only 12"H glass windows can be stacked on top of each other (p140).' });
     // Universal and Sarto screens with Answer thin trim top cap (2022 p402-403; rules p70-73): one screen per panel, its own top cap included
     if (p.topCapScreen) {
       const sc = p.topCapScreen;
@@ -1107,6 +1150,10 @@
           if (g.attach !== 'clip' && why.length) lines.push(Line('Glass', why.length, findRow('thin-recessed-frameless-glass-top-cap-connector', () => true), BYID['thin-recessed-frameless-glass-top-cap-connector'], `Recessed frameless glass top cap connector (${why.join('; ')}, p399)`, '', { src: ctx }));
           const topIsWindow = p.sides[0][p.sides[0].length - 1].kind === 'window';
           if (topIsWindow) warn.push({ panel: ctx, msg: 'Frameless glass screen cannot be used when a window is in the top position of the panel (p65).' });
+          // p65: "Frameless glass kits 54" to 66" will also require additional support clamps to be ordered" as service parts (T522096SR or T522097SR),
+          // "the maximum allowed distance between the clamps is 48""; omitting the glass for acrylic or 3form "may need" them. The guide prints no price.
+          if (g.attach !== 'clip' && W >= 54 && W <= 66) l.flags.push(`A ${W}"W recessed frameless glass kit also requires additional support clamps, ordered as service parts T522096SR or T522097SR, no more than 48" apart (p65). Not priced in the guide.`);
+          else if (g.attach !== 'clip' && g.omitGlass) l.notes.push('With acrylic or 3form in place of glass, additional support clamps may need to be ordered as service parts T522096SR or T522097SR, no more than 48" apart (p65).');
         }
       }
     }
@@ -1156,7 +1203,7 @@
               if (el > 0) { let e = 0; for (const x of sides[side] || []) { e += x.height; if (e === el) return x; } return null; }
               const prev = ti < 0 ? null : ti === 0 ? p.sides[side] : (p.stackSides[ti - 1] || [])[side]; return prev && prev.length ? prev[prev.length - 1] : null; };
             const skinBelow = [0, 1].map(belowOn).find(x => x && x.kind === 'skin' && ['steel', 'technology', 'tackable acoustical', 'performance tackable acoustical'].includes(x.type));
-            if (skinBelow) { const c = Line('Skins', 2, null, null, `Window clip T521328SR for the ${W}"W single-pane window over a ${skinBelow.type} skin`, '', { style: 'T521328SR', unit: 0, page: 464, src: ctx }); c.flags.push('Price is not listed in the guide (2015 p119, p510). Verify pricing with Steelcase.'); c.notes.push('Two clips per window kit 72"W or wider with steel or fabric skins directly below it (2015 p119, p510).'); lines.push(c); }
+            if (skinBelow) { const c = Line('Skins', 2, null, null, `Window clip T521328SR for the ${W}"W single-pane window over a ${skinBelow.type} skin`, '', { style: 'T521328SR', unit: 0, page: 510, src: ctx }); c.flags.push('Price is not listed in the guide (2015 p119, p510). Verify pricing with Steelcase.'); c.notes.push('Two clips per window kit 72"W or wider with steel or fabric skins directly below it (2015 p119, p510).'); lines.push(c); }
           }
           continue;
         }
@@ -1205,6 +1252,9 @@
           if (seg.magneticBacker) { l.optPrices.push(r.adders.magneticBacker); l.unit += r.adders.magneticBacker; l.spec += `; magnetic backer (+$${r.adders.magneticBacker})`; }
           l.notes.push('Back painted glass skins fit junctions manufactured on or after October 10, 2011 and do not attach to wall-start junctions (2022 p500).');
           if ([p.a, p.b].some(id => P.nodes[id] && P.nodes[id].wallStart)) l.flags.push('Back painted glass skins do not attach to wall-start junctions (2022 p500).');
+          // p137: "available for use in monolithic 30"H and 42"H panel applications or in combination with other types of skins on the same frame"
+          if (segs.filter(x => x.kind === 'skin' && x.type === 'back painted glass').length > 1) l.flags.push('Two or more back painted glass skins on one side of one frame: the guide offers back painted glass as one monolithic skin on 30"H and 42"H panels, or combined with other skin types on the same frame (p137). Change the other tiles to another skin type.');
+          if (!seg.glassColor) l.flags.push('Back painted glass color is required to specify (p500).');
           lines.push(l);
         } else if (t === 'markerboard') {
           const pid = toFloor ? 'sh-markerboard-skins-to-floor' : 'sh-markerboard-skins'; const prod = BYID[pid];
@@ -1213,14 +1263,14 @@
           lines.push(Line('Skins', 1, r, prod, `Markerboard skin ${W}"W × ${seg.height}"H${toFloor ? ' to the floor' : ''} — side ${si + 1}${where !== 'base' ? ' ' + where : ''}`, '', { src: ctx }));
         } else if (t === 'slatwall') {
           if (toFloor) warn.push({ panel: ctx, msg: 'Slatwall skins are not offered to the floor (p484).' });
-          else if (where === 'base' && k === 0) warn.push({ panel: ctx, msg: `Side ${'AB'[si]}: slatwall skins cannot be used in the bottom 12" of an Answer panel (p131, p484).` });
+          else if (where === 'base' && k === 0) warn.push({ panel: ctx, msg: `Side ${'AB'[si]}: slatwall skins cannot be used in the bottom 12" of an Answer panel (p133, p484).` });
           const prod = BYID['sh-slatwall-skins'];
           const r = findRow('sh-slatwall-skins', x => x.attrs.width === W && x.attrs.height === seg.height);
           if (!r) { warn.push({ panel: ctx, msg: `No slatwall skin ${W}"W × ${seg.height}"H (p484).` }); continue; }
           lines.push(Line('Skins', 1, r, prod, `Slatwall skin ${W}"W × ${seg.height}"H — side ${si + 1}`, `paint ${F.steelPaint.code} ${F.steelPaint.name}`, { src: ctx }));
-          // brace package only when the tile is marked for a Details flat panel monitor arm (p131: required for monitor arms only)
+          // brace package only when the tile is marked for a Details flat panel monitor arm (p133: required for monitor arms only)
           const b = seg.brace && findRow('sh-slatwall-skin-brace-packages', x => x.attrs.width === W && x.attrs.height === seg.height);
-          if (b) { const bl = Line('Skins', 1, b, BYID['sh-slatwall-skin-brace-packages'], `Slatwall skin brace package ${W}"W × ${seg.height}"H — side ${si + 1}`, '', { src: ctx }); bl.notes.push('Required when mounting a Details flat panel monitor arm on the slatwall skin (p131).'); lines.push(bl); }
+          if (b) { const bl = Line('Skins', 1, b, BYID['sh-slatwall-skin-brace-packages'], `Slatwall skin brace package ${W}"W × ${seg.height}"H — side ${si + 1}`, '', { src: ctx }); bl.notes.push('Required when mounting a Details flat panel monitor arm on the slatwall skin (p133).'); lines.push(bl); }
         } else if (t === 'technology') {
           const prod = BYID['sh-steel-technology-skins'];
           // technology covers (TS7TSCOVER only, p505): one per cutout opening (2015 p117). Openings per 2015 p117 diagrams: 24"W one; 30"W one double (2);
@@ -1237,6 +1287,12 @@
           if (!r) { warn.push({ panel: ctx, msg: `No steel technology skin ${W}"W × ${seg.height}"H (${seg.cutouts || 'All'} cutouts) (p505).` }); continue; }
           const l = Line('Skins', 1, r, prod, `Steel technology skin ${W}"W × ${seg.height}"H, ${seg.cutouts || 'All'} cutouts — side ${si + 1}`, `paint ${F.steelPaint.code} ${F.steelPaint.name}`, { src: ctx });
           addOpt(l, prod, E.paintGroupCode(F.steelPaint), r, `paint group ${F.steelPaint.group}`);
+          // p139 placement: nominal elevation of the tile above the bottom of the panel's skins (tiers start at the base skins' top)
+          const ti = where === 'base' ? -1 : (parseInt(where.replace(/\D+/g, ''), 10) || 1) - 1;
+          const absEl = ti < 0 ? el : (p.height - 6) + sum(p.stack.slice(0, ti)) + el;
+          if (seg.height === 18 && absEl % 12 !== 0) l.flags.push(`18"H technology skins must be planned in 12"H increments from the bottom of the panel to align with powerkit locations (p139); this one starts ${absEl}" up.`);
+          if (seg.height === 6 && where === 'base' && p.height === 30) l.flags.push('6"H technology skins cannot be used on a 30" high panel (p139).');
+          if (seg.height === 6 && /^No/.test(cu) && absEl < 12) l.flags.push('6"H technology skins with no cutouts can be used in any 6" position except the bottom 12" of the panel (p139).');
           lines.push(l);
           if (p.power.kind !== 'powerkit' || (p.power.receptacles[si] || 0) + (p.power.usb[si] || 0) < E.powerBlocksPerSide(W)) l.flags.push(`Technology skins require receptacles in all power block locations of a powerkit (p189): side ${si + 1} needs ${E.powerBlocksPerSide(W) || 'a powerkit with'} receptacle(s).`);
           if (p.baseTrim === 'hardwire') l.flags.push('Technology skins cannot be used with the hardwired solution (p192).');
@@ -1298,7 +1354,7 @@
       if (n + u > perSide) warn.push({ panel: ctx, msg: `Side ${'AB'[si]}: ${n + u} receptacles requested but a ${p.width}"W powerkit has ${perSide} power block location(s) per side (p189).` });
       // receptacles above the base (or behind skins to the floor) go through a field-cut fabric skin with a faceplate (p124, p189, p193)
       const seg = !(n + u) ? null : pw.location !== 'base' ? skinAt(p.sides[si], E.POWER_WS_ELEV) : p.skinsToFloor ? p.sides[si][0] : null;
-      if (seg && (seg.kind === 'window' || !['tackable acoustical', 'performance tackable acoustical', 'technology'].includes(seg.type))) warn.push({ panel: ctx, msg: `Side ${'AB'[si]}: receptacles cannot be accessed through a ${seg.kind === 'window' ? 'window' : seg.type} skin; only fabric skins are field-cut, or use a technology skin (p126, p131, p131, p136, p189).` });
+      if (seg && (seg.kind === 'window' || !['tackable acoustical', 'performance tackable acoustical', 'technology'].includes(seg.type))) warn.push({ panel: ctx, msg: `Side ${'AB'[si]}: receptacles cannot be accessed through a ${seg.kind === 'window' ? 'window' : seg.type} skin; only fabric skins are field-cut, or use a technology skin (p126, p131, p135, p136, p189).` });
       else if (seg && seg.type !== 'technology') { const r = findRow('wc-faceplate', () => true); lines.push(Line('Power', n + u, r, BYID['wc-faceplate'], `Faceplate for receptacle in field-cut ${seg.type} skin — side ${si + 1}`, `plastic ${colorOpt(BYID['wc-faceplate'])}`, { src: ctx })); }
       const lines_ = pw.lines || (sch === 'Z' ? [1, 2, 3] : [1, 2, 3, 4]);
       for (let i = 0; i < n; i++) {
@@ -1341,17 +1397,19 @@
     }
     for (const c of E.panelConflicts(P)) errors.push({ panel: c.panel, msg: c.msg });
     const notices = []; for (const p of Object.values(P.panels)) notices.push(...(E.sanitizePanel(P, p) || []));
-    // validations per panel (p33, p100, p148)
+    // validations per panel (p34 thin, p102 square and oval, p148)
     for (const p of Object.values(P.panels)) {
       const st = sum(p.stack);
-      if (p.stack.length > E.MAX_STACKERS) errors.push({ panel: p.id, msg: `${p.stack.length} stacking junctions on one base panel. Maximum is two (p33).` });
-      if (st > E.MAX_STACK) errors.push({ panel: p.id, msg: `${st}" stacked on a base panel. Maximum is 36" (one 24" + one 12", or two 18") (p33).` });
-      if (p.height + st > E.MAX_HEIGHT) errors.push({ panel: p.id, msg: `Total height ${p.height + st}" exceeds the 90" maximum (p33, p148).` });
+      if (p.stack.length > E.MAX_STACKERS) errors.push({ panel: p.id, msg: `${p.stack.length} stacking junctions on one base panel. Maximum is two (p34, p102).` });
+      if (st > E.MAX_STACK) errors.push({ panel: p.id, msg: `${st}" stacked on a base panel. Maximum is 36" (one 24" + one 12", or two 18") (p34, p102).` });
+      if (p.height + st > E.MAX_HEIGHT) errors.push({ panel: p.id, msg: `Total height ${p.height + st}" exceeds the 90" maximum (p34, p102, p148).` });
       if (p.stack.some(s => !E.STACK_HEIGHTS.includes(s))) errors.push({ panel: p.id, msg: 'Stacking junctions are 6", 12", 18" or 24"H only (2022 p32).' });
       if (p.stack.includes(6)) { // 2022 p34: a 6"H stacking junction sits on a base junction only, never with another stacker; nothing mounts on top of it
         if (p.stack.length > 1) errors.push({ panel: p.id, msg: 'A 6"H stacking junction cannot be used with another stacking junction (2022 p34).' });
         if (p.glassScreen) errors.push({ panel: p.id, msg: 'Frameless glass cannot be mounted on a 6"H stacking junction (2022 p34).' });
-        const top = p.stackSides && p.stackSides[p.stack.length - 1]; if (top && top.some(sd => sd.length && sd[sd.length - 1].kind === 'window')) errors.push({ panel: p.id, msg: 'A glass window cannot be in the top position of a panel segment that has a 6"H stacker (2022 p34).' });
+        // p34, p141: "Glass windows cannot be placed in the top position of a panel segment that has a 6"H stacker": the base panel under the stacker
+        if (p.sides.some(sd => sd.length && sd[sd.length - 1].kind === 'window')) errors.push({ panel: p.id, msg: 'A glass window cannot be in the top position of a panel segment that has a 6"H stacker (p34, p141).' });
+        if (P.trim !== 'thin') errors.push({ panel: p.id, msg: 'The 6"H stacking junction is thin trim only: square and oval stacking junctions come 12", 18" and 24"H (p441-p444). Choose a 12" stacker or thin trim.' });
       }
       if (!E.heightsFor(P.trim).includes(p.height)) errors.push({ panel: p.id, msg: P.trim === 'thin' ? 'Panel height must be 30, 36, 42, 48, 54, 66 or 78 (2022 p16).' : 'Panel height must be 30, 42, 48, 54, 66 or 78 (2022 p90); 36"H is a thin-trim height (2022 p16).' });
       if (!E.WIDTHS.includes(p.width)) errors.push({ panel: p.id, msg: 'Panel width must be 18, 24, 30, 36, 42, 48, 60 or 72 (p58).' });
@@ -1389,7 +1447,7 @@
       else if (rec > cap * Math.max(1, ins)) warn.push({ panel: run[0], msg: `${nm}: ${rec} receptacles on ${ins === 1 ? 'one power-in' : ins + ' power-ins'}: a ${schematicName(P)} power-in supplies at most ${cap} receptacles (p172). Split it into ${Math.ceil(rec / cap)} circuit runs (a panel without power between them), each with its own power-in.` });
       else if (ins > 1) warn.push({ panel: run[0], msg: `${nm}: ${ins} power-ins on one connected circuit run. One building power-in feeds a run through its powerkits (p172, p184): keep one, or split the run into separate circuit runs with a panel without power between them.` });
     }
-    // stability (p150-151)
+    // stability (p151-152, p162)
     stability(P, nodesInfo, warn);
     // project-level extras
     if (P.options.includeGlideCaps && P.trim === 'thin') {
@@ -1407,7 +1465,9 @@
     for (const l of lines) { l.ext = Math.round((l.unit || 0) * l.qty); try { l.contents = E.packageContents(P, l); } catch (err) { l.contents = []; } }
     return { lines, warnings: warn, errors, notices, nodes: nodesInfo, totals: totals(lines), footprint: footprint(P, nodesInfo) };
   };
-  // 2015 p1: Canadian list = base price and each option × 1.09, each rounded to the dollar, then added
+  // Canadian list = base price and each option × 1.09, each rounded to the dollar, then added (2015 p1 factor 1.09; the June 2022 p1 keeps the
+  // calculation order but sends the reader to www.steelcase.com/CADpricing for the factor). Kept at 1.09 at the owner's direction (2026-09-27).
+  // It applies to the adjusted U.S. prices (E.PRICE_ADJUST).
   E.cadOf = (l) => { const o = l.optPrices || []; return l.qty * (Math.round(((l.unit || 0) - sum(o)) * 1.09) + sum(o.map(x => Math.round(x * 1.09)))); };
   E.cadTotal = (lines) => lines.reduce((a, l) => a + E.cadOf(l), 0);
   function totals(lines) {
@@ -1436,7 +1496,7 @@
     return runs;
   }
   function stability(P, nodesInfo, warn) {
-    // a straight run continues through in-line, T and X junctions; perpendicular legs brace it there and anchor it at its ends (p150-151).
+    // a straight run continues through in-line, T and X junctions; perpendicular legs brace it there and anchor it at its ends (p151-152).
     // Lengths are nominal panel widths: the guide states these limits in nominal feet ("an 8' run", two 48" panels), so the corner allowances a T or
     // X adds along the run (CORNER_ALLOW) are not counted against them.
     const seen = new Set(), ft = (x) => (x / 12).toFixed(1) + "'";
@@ -1458,16 +1518,16 @@
       const A = walk(p.a, p), B = walk(p.b, p), a0 = A.end.d, len = a0 + p.width + B.end.d, ids = chain.map(x => x.id).join(',');
       const ends = [{ x: 0, w: A.end.w }, { x: len, w: B.end.w }];
       const mid = [...A.braces.map(s => ({ x: a0 - s.d, w: s.w })), ...B.braces.map(s => ({ x: a0 + p.width + s.d, w: s.w }))];
-      if (len > 96) { // p150: an 8' run needs no return; over 8' up to 18' at least a 30"W return panel anchoring each end
+      if (len > 96) { // p151: an 8' run needs no return; over 8' up to 18' at least a 30"W return panel anchoring each end
         const anchors = [...ends, ...mid].filter(s => s.w >= 30);
         const narrow = ends.filter(e => e.w > 0 && e.w < 30).map(e => `${e.w}"W`);
-        if (!anchors.length) warn.push({ panel: ids, msg: `Straight run of ${len}" (${ft(len)}) has no return panel of 30"W or more${narrow.length ? ` (${narrow.join(', ')} return too narrow)` : ''}. Runs over 8' need a 30"W minimum return, or a junction stabilizer bracket every 8' bolted to concrete (p150).` });
-        else for (const e of ends) { if (e.w >= 30) continue; const near = anchors.reduce((b, s) => Math.abs(s.x - e.x) < Math.abs(b.x - e.x) ? s : b), dist = Math.abs(near.x - e.x); if (dist > 96) warn.push({ panel: ids, msg: `Straight run of ${len}" (${ft(len)}): ${e.w ? `the ${e.w}"W return at one end is narrower than 30"` : 'one end is free'} and ${ft(dist)} from the nearest anchor (${near.w === Infinity ? 'the wall-start junction at the other end, p161' : `a ${near.w}"W return`}). Over 8', anchor each end with a 30"W minimum return, or a junction stabilizer bracket every 8' bolted to concrete (p150).` }); }
+        if (!anchors.length) warn.push({ panel: ids, msg: `Straight run of ${len}" (${ft(len)}) has no return panel of 30"W or more${narrow.length ? ` (${narrow.join(', ')} return too narrow)` : ''}. Runs over 8' need a 30"W minimum return, or a junction stabilizer bracket every 8' bolted to concrete (p151).` });
+        else for (const e of ends) { if (e.w >= 30) continue; const near = anchors.reduce((b, s) => Math.abs(s.x - e.x) < Math.abs(b.x - e.x) ? s : b), dist = Math.abs(near.x - e.x); if (dist > 96) warn.push({ panel: ids, msg: `Straight run of ${len}" (${ft(len)}): ${e.w ? `the ${e.w}"W return at one end is narrower than 30"` : 'one end is free'} and ${ft(dist)} from the nearest anchor (${near.w === Infinity ? 'the wall-start junction at the other end, p162' : `a ${near.w}"W return`}). Over 8', anchor each end with a 30"W minimum return, or a junction stabilizer bracket every 8' bolted to concrete (p151).` }); }
       }
-      if (len > 216) { // p151: over 18', a 48"W perpendicular panel every 12'
+      if (len > 216) { // p152: over 18', a 48"W perpendicular panel every 12'
         const xs = [0, ...mid.filter(s => s.w >= 48).map(s => s.x).sort((x, y) => x - y), len]; let span = 0;
         for (let i = 1; i < xs.length; i++) span = Math.max(span, xs[i] - xs[i - 1]);
-        if (span > 144) warn.push({ panel: ids, msg: `Run of ${ft(len)} exceeds 18'. Locate a 48"W perpendicular panel every 12' (p151); the longest span without one is ${ft(span)}.` });
+        if (span > 144) warn.push({ panel: ids, msg: `Run of ${ft(len)} exceeds 18'. Locate a 48"W perpendicular panel every 12' (p152); the longest span without one is ${ft(span)}.` });
       }
     }
   }
@@ -1762,13 +1822,15 @@
       } else qty(0, 'trim, junction cap, light seals and aligners omitted (ordered separately for stacking)');
     } else if (/stacking.*junction/.test(pid) && !/frame/.test(pid)) {
       const t = a.junctionType || (/IPJS$/.test(l.style) ? 'inline' : /WPJS$/.test(l.style) ? 'wall' : 'EOR');
-      const forks = { inline: 2, L: 2, V: 2, EOR: 2, T: 3, Y: 3, X: 4, wall: 1 }[t] || 2;
+      // p33: "Two fork connectors are included with in-line, L, and V stacking junctions, three ... with T and Y ..., four ... with X ...
+      // One fork connector is included with each wall-start stacking junction and end-of-run."
+      const forks = { inline: 2, L: 2, V: 2, EOR: 1, T: 3, Y: 3, X: 4, wall: 1 }[t] || 2;
       qty(1, `${t === 'inline' ? 'in-line' : t === 'EOR' ? 'end-of-run' : t === 'wall' ? 'wall-start' : t} stacking junction ${a.stackHeight}"H (black)`);
       qty(forks, 'fork connector');
       if (!thin && ['L', 'T', 'EOR', 'V'].includes(t)) { qty(1, `stacking vertical trim ${a.stackHeight}"H`); qty(1, 'stacking trim aligner (plastic)'); }
     } else if (/frameless-glass-screen/.test(pid)) {
       const gh = a.height; qty(has('omit glass') ? 0 : 1, `${has('frosted') ? '6530 frosted' : '6500 clear'} glass ${W}"W × ${gh}"H, 3/8" thick${has('omit glass') ? ' (customer supplies)' : ''}`);
-      if (/recessed/.test(pid)) { qty(W >= 78 ? 3 : 2, 'glass support'); qty(2, `thin top cap (${has('wood') ? 'wood' : 'painted'})`); qty(2, 'top cap aligner'); }
+      if (/recessed/.test(pid)) { qty(W >= 72 ? 3 : 2, 'glass support'); /* p64, p396: two supports 24"-66"W, three 72"-96"W */ qty(2, `thin top cap (${has('wood') ? 'wood' : 'painted'})`); qty(2, 'top cap aligner'); }
       else { qty(W >= 90 ? 3 : 2, 'clip bracket (painted)'); qty(2, 'glass support'); qty(1, `thin top cap with bracket holes ${W}"W (${has('wood') ? 'wood' : 'painted'})`); }
     } else if (/panel-top-screen/.test(pid)) { qty(1, `translucent screen ${a.screenWidth}"W × 12"H`); qty(2, 'support bracket (6623 metallic)'); }
     else if (pid === 'wc-powerkit') { qty(1, `power tray ${W}"W (black)`); qty(a.receptaclesPerSide, 'power block (receptacles both faces)'); qty(1, 'harness with modular connectors'); }
@@ -1791,12 +1853,12 @@
 
   // =====================================================================================
   // Workstations: Universal Systems worksurfaces, panel-mounted supports and pedestals
-  // Sources: 2015 p200-201 (statement of line), p223-225 (application), p222/236/237/238 (supports), p314-315 (pedestals),
+  // Sources: 2015 p200-201 (statement of line), p223-225 (application), p236-239 (supports), p314-315 (pedestals),
   // specifying p539 (straight), p563 (corner), p567 (extended corner), p568 (120°), p588-591 (supports),
   // p594 (legs), p651/652/653/655/656 (pedestals), p652 (fillers)
   // =====================================================================================
   E.WS_HEIGHT = 28.5;                 // seated worksurface height with 27"H fixed pedestals (p314, p590)
-  E.WS_DEPTHS = [24, 30, 18]; // panel-mounted depths. 36"D (35 1/2") straights are freestanding only (p539 tip): not offered on panels
+  E.WS_DEPTHS = [24, 30, 18]; // panel-mounted depths. 36"D (35 1/2") straights are freestanding only (p540 tip): not offered on panels
   E.WS_EDGES = { '3mm': 'Plastic 3 mm edge', P: 'Plastic P-edge', SW: 'Wood square edge', K: 'Plastic knife edge' };
   E.WS_SPAN_MAX = 54;                 // supports at least every 54" (p224, p237)
   E.PED_W = 15;
@@ -2003,7 +2065,7 @@
       e.notes.push(`L-configuration: the ${endName(e.ws, e.key)} end butts the front edge of ${wsName(A)} and is tied to it (p225, p223).`);
       if (both.some(w => w.construction !== 'full-depth')) warn.push({ panel: e.ws.id, msg: `${wsName(e.ws)} and ${wsName(A)} form an L-configuration with a 1/2" cord-drop worksurface, which leaves uneven gaps. Use full-depth worksurfaces for L-configurations (p225 tip).` });
       if (both.some(w => w.material !== 'wood' && w.edge === 'P')) warn.push({ panel: e.ws.id, msg: `${wsName(e.ws)} and ${wsName(A)}: a P-edge profile produces a valley where it meets a perpendicular worksurface, and its extra 3/8" depth is an interference fit on-module. Use the 3 mm edge profile for L-configurations (p225).` });
-      if (both.some(w => w.material !== 'wood' && w.edge === 'K')) warn.push({ panel: e.ws.id, msg: `${wsName(e.ws)} and ${wsName(A)}: knife-edge L-configurations are joined with two UFB flat brackets, since a cantilever is not wide enough for the joint (p223). The guide gives no style number for them: order them with the worksurfaces.` });
+      if (both.some(w => w.material !== 'wood' && w.edge === 'K')) warn.push({ panel: e.ws.id, msg: `${wsName(e.ws)} and ${wsName(A)}: knife-edge L-configurations are joined with two UFB flat brackets, since a cantilever is not wide enough for the joint (p246). The guide gives no style number for them: order them with the worksurfaces.` });
     }
     // seams between a full-depth and a cord-drop worksurface: the 1/2" cable gap at the back stops at the seam (p225)
     for (const [e, f] of seams) if (e.ws.construction !== f.ws.construction) warn.push({ panel: e.ws.id, msg: `${wsName(e.ws)} and ${wsName(f.ws)} butt at a seam but one is full depth and the other has the 1/2" cord drop, so the gap at the back is uneven. Use one construction for worksurfaces that meet (p225).` });
@@ -2055,7 +2117,7 @@
           else if (rc) { const c = Line('Supports', 1, rc, BYID['uw-reinforcing-channels'], `Reinforcing channel ${rc.attrs.width}"W for ${ws.width}"W worksurface`, 'black', { src: ctx }); c.notes.push(`Unsupported span of ${span}" is over ${knife ? '48" (knife edge)' : '54"'}. The channel allows 60" for heavy loads or 72" for light loads (p224). A pedestal or center support panel under the worksurface is the alternative.`); lines.push(c); }
           else warn.push({ panel: ws.id, msg: `${wsName(ws)}: ${span}" unsupported span and the guide lists no reinforcing channel for a ${ws.width}"W worksurface (p224, p589). Add a pedestal or center support under it.` });
         }
-        if (ws.depth === 36) errors.push({ panel: ws.id, msg: `${wsName(ws)}: 35 1/2"D worksurfaces can only be used in freestanding applications (p539 tip). Use 30"D or less on panels.` });
+        if (ws.depth === 36) errors.push({ panel: ws.id, msg: `${wsName(ws)}: 35 1/2"D worksurfaces can only be used in freestanding applications (p540 tip). Use 30"D or less on panels.` });
         { const al = E.runEndAllow(P, g.run); if (g.from < -al.lo - 0.01 || g.to > g.run.length + al.hi + 0.01) errors.push({ panel: ws.id, msg: `${wsName(ws)} runs past the end of its panel run. Slide it or shorten it.` }); }
       } else {
         // corner worksurfaces: rear corner takes one side support bracket, each arm end a cantilever unless shared (p237, p588 tip); junctions under a long arm take a cantilever before a channel is needed (p224)

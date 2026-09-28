@@ -29,9 +29,10 @@ const near = (a, b, tol) => Math.abs(a - b) <= (tol || 0.6);
   // 48 + 48 with glass (recessed 12 on the first, clip on the second), in-line same height
   { const { info, hits } = await load((E, T) => { const n = E.addNode(T, 0, 0); const a = E.addPanel(T, n, 0, 48, 54); const c = E.addPanel(T, T.nodes[a.b], 0, 48, 54); a.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; c.glassScreen = { attach: 'clip', height: 12, frosted: false, omitGlass: false }; }, 'thin');
     const s = info.s, g = hits.filter(h => h.kind === 'glass').sort((p, q) => p.x - q.x);
-    ck('recessed 12" glass kit drawn 15 1/2" of glass high, 47 7/8" wide (2022 p64: kits 6/12/18/24 carry 9 5/16, 15 1/2, 21 11/16, 27 7/8)', near(g[0].h, 15.5 * s) && near(g[0].w, 47.875 * s), JSON.stringify([g[0], s]));
+    const rec = await pg.evaluate(() => window.ANSWER.glassRecess({ attach: 'recessed', height: 12 }));
+    ck('recessed 12" glass kit shows 12" above the cap, 47 7/8" wide; its 15 1/2" pane drops 3 1/2" into the cap slot (p64; owner decision 2026-09-28)', near(g[0].h, 12 * s) && near(g[0].w, 47.875 * s) && near(rec, 3.5), JSON.stringify([g[0], s]));
     ck('clip glass drawn 11 3/4" high, 47 3/4" wide (p68)', near(g[1].h, 11.75 * s) && near(g[1].w, 47.75 * s), JSON.stringify([g[1], s]));
-    ck('glass sits on the cap (54 1/4")', near(g[0].y + g[0].h, info.y0 - 54.25 * s), JSON.stringify([g[0], info.y0])); }
+    ck('the visible glass starts at the cap (54 1/4") and its top is the kit height above it', near(g[0].y + g[0].h, info.y0 - 54.25 * s) && near(g[0].y, info.y0 - (54.25 + 12) * s), JSON.stringify([g[0], info.y0])); }
   // in-line change of height, glass on the lower panel: glass stops 1/2" from the junction center (47 7/16", p64)
   { const { info, hits } = await load((E, T) => { const n = E.addNode(T, 0, 0); const a = E.addPanel(T, n, 0, 48, 54); E.addPanel(T, T.nodes[a.b], 0, 48, 66); a.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; }, 'thin');
     const s = info.s, g = hits.find(h => h.kind === 'glass'); ck('glass next to change-of-height trim is 47 7/16" (p64)', near(g.w, 47.4375 * s), JSON.stringify([g, s]));
@@ -47,7 +48,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= (tol || 0.6);
   // oval: end trim 1", 54" panel 54 1/8", top screen 45 1/2"
   { const { info, hits } = await load((E, T) => { const n = E.addNode(T, 0, 0); const a = E.addPanel(T, n, 0, 48, 54); a.topScreen = true; }, 'oval');
     const s = info.s; ck('1×48 oval: 4\'-2" overall (1" end-of-run trim each end, p92)', /4'-2" overall/.test(info.label), info.label);
-    const g = hits.find(h => h.kind === 'glass'); ck('oval top screen 45 1/2" × 12" (p111)', g && near(g.w, 45.5 * s) && near(g.h, 12 * s), JSON.stringify([g, s]));
+    const g = hits.find(h => h.kind === 'glass'); ck('oval top screen 45 1/2" × 12" (p113)', g && near(g.w, 45.5 * s) && near(g.h, 12 * s), JSON.stringify([g, s]));
     const cap = hits.find(h => h.kind === 'topcap'); ck('54" oval panel drawn 54 1/8" (p90)', near(cap.y + 3, info.y0 - 54.125 * s), JSON.stringify([cap, info.y0, s])); }
   // plan: the end-of-run trim is drawn just outside the node, the skin runs to the node
   { await load((E, T) => { const n = E.addNode(T, 0, 0); E.addPanel(T, n, 0, 48, 54); }, 'thin');
@@ -55,6 +56,6 @@ const near = (a, b, tol) => Math.abs(a - b) <= (tol || 0.6);
     const cols = await pg.evaluate(() => { const v = window.answerDebug.view, c = document.getElementById('plan'), k = c.width / c.clientWidth, cx = c.getContext('2d'); const at = (x) => Array.from(cx.getImageData(Math.round((v.ox + x * v.s) * k), Math.round(v.oy * k), 1, 1).data).slice(0, 3).join(','); return { trim: at(-0.25), skin: at(0.4), out: at(-1.0), trimR: at(48.25), outR: at(49) }; });
     const TRIM = '35,35,35'; // the job's trim paint, 7207 Black (#232323): caps and trims are drawn in the trim finish
     ck('plan: end-of-run trim 0..1/2" outside the node, skin inside, nothing beyond', cols.trim === TRIM && cols.trimR === TRIM && cols.skin !== TRIM && cols.out !== TRIM && cols.outR !== TRIM, JSON.stringify(cols)); }
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
   console.log(fails ? `\n${fails} FAILURES` : '\nALL PASS'); await b.close(); process.exit(fails ? 1 : 0);
 })();

@@ -2,6 +2,9 @@
 const E = require('../src/engine.js');
 const cat = require('../src/catalog.json');
 E.init(cat);
+// the printed June 2022 list (catalog.json as stored) and the July 18, 2022 adjustment the engine applies to it (p1)
+const RAW = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '../src/catalog.json'), 'utf8'));
+const A = E.adjustPrice;
 let fails = 0;
 function expect(name, lines, expected) {
   // expected: {style: qty}
@@ -205,23 +208,23 @@ function star(P, heights) { // heights by angle {0:66,90:54,...}; returns center
   let tr = tech([2, 0]); let tl = tr.lines.find(l => l.pid === 'sh-steel-technology-skins');
   check('#8 technology skin 48x6 All cutouts resolves', tl && tl.style === 'TS7648TSS' && !tl.flags.some(f => /Technology skins require/.test(f)), tl ? tl.style : JSON.stringify(tr.warnings));
   tr = tech([1, 0]); tl = tr.lines.find(l => l.pid === 'sh-steel-technology-skins'); check('#8 technology skin with an empty power block -> flagged', tl && tl.flags.some(f => /Technology skins require/.test(f)));
-  // #9 return narrower than 30" does not anchor a run over 8' (p150)
-  const run = (widths, left, right, extra) => { const P = E.newProject('thin'); let n = E.addNode(P, 0, 0); const s = n; const nodes = []; for (const w of widths) { const p = E.addPanel(P, n, 0, w, 54); n = P.nodes[p.b]; nodes.push(n); } if (left) E.addPanel(P, s, 90, left, 54); if (right) E.addPanel(P, n, 90, right, 54); if (extra) extra(P, nodes); return E.generate(P).warnings.filter(w => /\(p15[01]\)/.test(w.msg)); };
+  // #9 return narrower than 30" does not anchor a run over 8' (p151)
+  const run = (widths, left, right, extra) => { const P = E.newProject('thin'); let n = E.addNode(P, 0, 0); const s = n; const nodes = []; for (const w of widths) { const p = E.addPanel(P, n, 0, w, 54); n = P.nodes[p.b]; nodes.push(n); } if (left) E.addPanel(P, s, 90, left, 54); if (right) E.addPanel(P, n, 90, right, 54); if (extra) extra(P, nodes); return E.generate(P).warnings.filter(w => /\(p15[12]\)/.test(w.msg)); };
   check('#9 16\' run with 24"W returns -> warning', run([48, 48, 48, 48], 24, 24).length === 1);
   check('#9 16\' run with 30"W returns -> ok', run([48, 48, 48, 48], 30, 30).length === 0);
-  // #10 over 18': 48"W perpendicular every 12', measured through T junctions (p151)
+  // #10 over 18': 48"W perpendicular every 12', measured through T junctions (p152)
   check('#10 20\' spine, 48"W fin at 4\' leaves a 16\' span -> warning', run([48, 48, 48, 48, 48], 30, 30, (P, ns) => E.addPanel(P, ns[0], 90, 48, 54)).some(w => /longest span without one is 16.0'/.test(w.msg)));
   check('#10 24\' spine, 48"W fin at 12\' -> ok', run([72, 72, 72, 72], 30, 30, (P, ns) => E.addPanel(P, ns[1], 90, 48, 54)).length === 0);
   check('#10 24\' spine, 24"W fin at 12\' -> warning', run([72, 72, 72, 72], 30, 30, (P, ns) => E.addPanel(P, ns[1], 90, 24, 54)).some(w => /48"W perpendicular/.test(w.msg)));
-  // #11 both ends of a run over 8' are anchored; a free end within 8' of a return is fine (p150 figures)
+  // #11 both ends of a run over 8' are anchored; a free end within 8' of a return is fine (p151 figures)
   check('#11 16\' run, return at one end only -> warning', run([48, 48, 48, 48], 30, 0).some(w => /one end is free/.test(w.msg)));
   check('#11 8\' fin off a 30"W return -> ok', run([48, 48], 30, 0).length === 0);
   check('#11 16\' run, free end 8\' from a mid-run 30"W fin -> ok', run([48, 48, 48, 48], 30, 0, (P, ns) => E.addPanel(P, ns[1], 90, 30, 54)).length === 0);
-  // #12 Canadian list: each base price and option x1.09 rounded, then added (2015 p1)
+  // #12 Canadian list: each base price and option x1.09 rounded, then added (2015 p1 factor; 2022 p1 order of calculation)
   { const P = E.newProject('thin'); P.manual = [{ style: 'TS7UFPLATE', qty: 1 }, { style: 'TS7UFPLATE', qty: 1 }, { style: 'TS7UFPLATE', qty: 1 }]; const r = E.generate(P); check('#12 Canadian 3 x $5 faceplates = $15', r.totals.all === 15 && r.totals.canadian === 15, JSON.stringify(r.totals)); }
   { const P = E.newProject('thin'); P.finishes.trimPaint = { code: '7209', name: 'Custom', group: 2 }; P.finishes.fabric = { code: '5F02', name: 'Group 2 fabric', group: 2 }; const a = E.addNode(P, 0, 0); E.addPanel(P, a, 0, 36, 54); const r = E.generate(P); const pk = r.lines.find(l => l.pid === 'thin-panel-package');
     const byHand = r.lines.reduce((s, l) => s + (l === pk ? 0 : l.qty * Math.round(l.unit * 1.09)), 0) + Math.round((pk.unit - pk.optPrices.reduce((x, y) => x + y, 0)) * 1.09) + pk.optPrices.reduce((x, o) => x + Math.round(o * 1.09), 0);
-    check('#12 Canadian rounds the package base and each option separately', pk.optPrices.length > 0 && r.totals.canadian === byHand && byHand !== Math.round(r.totals.all * 1.09), `${r.totals.canadian} (total x1.09 would be ${Math.round(r.totals.all * 1.09)}; options ${JSON.stringify(pk.optPrices)})`); }
+    check('#12 Canadian rounds the package base and each option separately', pk.optPrices.length > 0 && r.totals.canadian === byHand && E.cadOf({ qty: 1, unit: 20, optPrices: [5, 5] }) === 21 && Math.round(20 * 1.09) === 22, `${r.totals.canadian} (total x1.09 would be ${Math.round(r.totals.all * 1.09)}; options ${JSON.stringify(pk.optPrices)})`); }
   // power-in capacity (p172)
   { const P = E.newProject('thin'); let n = E.addNode(P, 0, 0); for (let i = 0; i < 6; i++) { const p = E.addPanel(P, n, 0, 72, 54); n = P.nodes[p.b]; p.power = { kind: 'powerkit', location: 'base', receptacles: [4, 4], usb: [0, 0], infeed: i === 0 ? { length: 6 } : null }; } const r = E.generate(P); check('power-in: 48 receptacles on one 4-circuit infeed -> warning', r.warnings.some(w => /48 receptacles on one power-in.*\(p172\)\. Split it into 2 circuit runs/.test(w.msg))); }
 }
@@ -318,10 +321,10 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   // p454: wood stacking CoH trim is its own style; fabric is an option on steel trim
   const wood = (P) => { P.finishes.woodTrim = true; P.finishes.ovalWoodTrim = true; }, fab = (P) => { P.finishes.ovalTrimFabric = true; };
   expect('oval L 30/78 wood trim: TS736CHSW + TS712CHSTW (p453-454)', trims(ovalStar({ 0: 30, 90: 78 }, null, wood)), { TS736CHSW: 1, TS712CHSTW: 1 });
-  { const st = trims(ovalStar({ 0: 30, 90: 78 }, null, fab)).find(l => l.style === 'TS712CHST'); check('oval stacking CoH fabric trim option (2022 2022 p454: $87 + $73 fabric)', st && /fabric trim/.test(st.spec) && st.unit === 87 + 73, st && st.spec + ' $' + st.unit); }
+  { const st = trims(ovalStar({ 0: 30, 90: 78 }, null, fab)).find(l => l.style === 'TS712CHST'); check('oval stacking CoH fabric trim option (p454: $87 + $73 fabric, each + 9%)', st && /fabric trim/.test(st.spec) && st.unit === A(87) + A(73), st && st.spec + ' $' + st.unit); }
   // p376: stacking L/T junction trim in wood is the ...PJSW style; fabric +$80 on steel trim
-  { const r = ovalStar({ 0: 54, 90: 54 }, [[12], [12]], wood); const sj = nodeLines(r.P, r.res, r.c).filter(l => l.cat === 'Stacking'); check('oval wood trim: stacking L junction is TS712LPJSW (2022 2022 p442: $675)', sj.length === 1 && sj[0].style === 'TS712LPJSW' && sj[0].unit === 675, sj.map(l => l.style + ' $' + l.unit).join(',')); }
-  { const r = ovalStar({ 0: 54, 90: 54 }, [[12], [12]], fab); const sj = nodeLines(r.P, r.res, r.c).filter(l => l.cat === 'Stacking'); check('oval fabric trim: stacking L junction +$114 fabric (2022 2022 p442: $476 + $114)', sj.length === 1 && sj[0].style === 'TS712LPJS' && sj[0].unit === 476 + 114 && /fabric trim/.test(sj[0].spec), sj.map(l => l.style + ' $' + l.unit + ' ' + l.spec).join(',')); }
+  { const r = ovalStar({ 0: 54, 90: 54 }, [[12], [12]], wood); const sj = nodeLines(r.P, r.res, r.c).filter(l => l.cat === 'Stacking'); check('oval wood trim: stacking L junction is TS712LPJSW (p442: $675 + 9%)', sj.length === 1 && sj[0].style === 'TS712LPJSW' && sj[0].unit === A(675), sj.map(l => l.style + ' $' + l.unit).join(',')); }
+  { const r = ovalStar({ 0: 54, 90: 54 }, [[12], [12]], fab); const sj = nodeLines(r.P, r.res, r.c).filter(l => l.cat === 'Stacking'); check('oval fabric trim: stacking L junction +$114 fabric (p442: $476 + $114, each + 9%)', sj.length === 1 && sj[0].style === 'TS712LPJS' && sj[0].unit === A(476) + A(114) && /fabric trim/.test(sj[0].spec), sj.map(l => l.style + ' $' + l.unit + ' ' + l.spec).join(',')); }
   // single-panel helper
   const one = (trim, h, setup, w) => { const P = E.newProject(trim); const a = E.addNode(P, 0, 0); const p = E.addPanel(P, a, 0, w || 48, h); setup(p, P, a); const res = E.generate(P); return { P, p, res, pl: res.lines.filter(l => l.src === p.id), wm: res.warnings.filter(x => x.panel === p.id).map(x => x.msg) }; };
   // 2015 p117: technology covers, one per cutout opening (cutouts given as the planner's UI values)
@@ -339,8 +342,8 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     check('3 stacked windows and windows on a 24" top window warn (p140)', r.wm.some(m => /No more than two/.test(m)) && r.wm.some(m => /24"H glass window in the top/.test(m)), r.wm.join(' | '));
     check('both stack tiers windows: one stacking frame package kept (p63, 2015 p119)', r.pl.filter(l => /HFS$/.test(l.style)).length === 1, r.pl.filter(l => /HFS$/.test(l.style)).map(l => l.style).join(',')); }
   // p131: slatwall not in the bottom 12"; brace package only when asked for
-  { const r = one('thin', 42, p => { p.sides[0] = [{ kind: 'skin', type: 'slatwall', height: 12 }, sk(24)]; }); check('slatwall at the bottom warns, no brace by default (p131)', r.wm.some(m => /bottom 12/.test(m)) && !r.pl.some(l => /SBP$/.test(l.style)), r.wm.join(' | ')); }
-  { const r = one('thin', 42, p => { p.sides[0] = [sk(24), { kind: 'skin', type: 'slatwall', height: 12, brace: true }]; }); check('slatwall with brace flag orders the brace package (p131)', r.pl.some(l => l.style === 'TS71248SBP') && !r.wm.some(m => /bottom 12/.test(m)), r.pl.map(l => l.style).join(',')); }
+  { const r = one('thin', 42, p => { p.sides[0] = [{ kind: 'skin', type: 'slatwall', height: 12 }, sk(24)]; }); check('slatwall at the bottom warns, no brace by default (p133)', r.wm.some(m => /bottom 12/.test(m)) && !r.pl.some(l => /SBP$/.test(l.style)), r.wm.join(' | ')); }
+  { const r = one('thin', 42, p => { p.sides[0] = [sk(24), { kind: 'skin', type: 'slatwall', height: 12, brace: true }]; }); check('slatwall with brace flag orders the brace package (p133)', r.pl.some(l => l.style === 'TS71248SBP') && !r.wm.some(m => /bottom 12/.test(m)), r.pl.map(l => l.style).join(',')); }
   // p65 / p399: recessed glass top cap connector
   { const P = E.newProject('thin'); star(P, { 0: 54, 90: 54 }); for (const q of Object.values(P.panels)) q.glassScreen = { attach: 'recessed', height: 12 }; const res = E.generate(P); check('no recessed top cap connector at a same-height corner (p65)', !res.lines.some(l => l.style === 'TS7TFGRC')); }
   { const P = E.newProject('thin'); star(P, { 0: 54, 90: 66 }); const low = Object.values(P.panels).find(q => q.height === 54); low.glassScreen = { attach: 'recessed', height: 12 }; const res = E.generate(P); check('recessed top cap connector at a corner with a taller leg (p65)', res.lines.filter(l => l.style === 'TS7TFGRC').reduce((a, l) => a + l.qty, 0) === 1); }
@@ -354,9 +357,9 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   const ov = (heights, stacks, opt) => { const P = E.newProject('oval'); if (opt) opt(P); const c = star(P, heights); const ps = Object.values(P.panels); (stacks || []).forEach((s, i) => { if (s) E.setStack(P, ps[i], s); }); const res = E.generate(P); return nodeLines(P, res, c).filter(l => l.cat === 'Junction' || l.cat === 'Stacking' || l.cat === 'Trim'); };
   expect('oval in-line 42 / 42+24: in-line stacking junction + standard CoH, no EOR stacker (p93, 2015 p81)', ov({ 0: 42, 180: 42 }, [null, [24]]), { TS742IPJ: 1, TS724IPJS: 1, TS724CHS: 1 });
   expect('oval L 42 / 54+24: L stacking junction from 54" + standard CoH 36 (p93, 2015 p81)', ov({ 0: 42, 90: 54 }, [null, [24]]), { TS754LPJ: 1, TS724LPJS: 1, TS736CHS: 1 });
-  // one change-of-height trim run per exposed face (p95): legs 0 and 270 expose 42"→66" (standard 12 on the first stacked tier + stacking 12
+  // one change-of-height trim run per exposed face (p96): legs 0 and 270 expose 42"→66" (standard 12 on the first stacked tier + stacking 12
   // on the second, 2015 p81), leg 90 exposes 54"→66" (standard 12). Earlier the band model counted one trim per height band, not per face.
-  expect('oval X 42 / 42+12 / 42+24 / 42: X stacking junctions only (p93), CoH trim per exposed face (p95)', ov({ 0: 42, 90: 42, 180: 42, 270: 42 }, [null, [12], [24], null]), { TS742XPJ: 1, TS712XPJS: 2, TS712CHS: 3, TS712CHST: 2 });
+  expect('oval X 42 / 42+12 / 42+24 / 42: X stacking junctions only (p93), CoH trim per exposed face (p96)', ov({ 0: 42, 90: 42, 180: 42, 270: 42 }, [null, [12], [24], null]), { TS742XPJ: 1, TS712XPJS: 2, TS712CHS: 3, TS712CHST: 2 });
   expect('oval in-line 66 / 42+24: no stacking junction below the shared 66" junction (2015 p81, p100)', ov({ 0: 66, 180: 42 }, [null, [24]]), { TS766IPJ: 1 });
   expect('oval in-line 54 / 42+24: in-line stacker 54"→66" only + 12 CoH (2015 p81)', ov({ 0: 54, 180: 42 }, [null, [24]]), { TS754IPJ: 1, TS712IPJS: 1, TS712CHS: 1 });
   { const P = E.newProject('oval'); const a = E.addNode(P, 0, 0); const p = E.addPanel(P, a, 0, 48, 42); E.setStack(P, p, [24, 12]); const res = E.generate(P);
@@ -364,10 +367,10 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   expect('oval in-line both [18,18]: two 18" in-line stackers (p100, p375)', ov({ 0: 42, 180: 42 }, [[18, 18], [18, 18]]), { TS742IPJ: 1, TS718IPJS: 2 });
   expect('oval wood trim L 54 +12: wood base + TS712LPJSW (p433, p376)', ov({ 0: 54, 90: 54 }, [[12], [12]], P => { P.finishes.woodTrim = true; P.finishes.ovalWoodTrim = true; }), { TS754LPJW: 1, TS712LPJSW: 1 });
   { const ls = ov({ 0: 54, 120: 54 }, [[12], null], P => { P.finishes.ovalTrimFabric = true; }); const v = ls.find(l => l.style === 'TS712VPJS');
-    const ok = v && v.unit === 630 + 114 && /fabric trim/.test(v.spec) && ls.some(l => l.style === 'TS712CHS');
-    console.log((ok ? 'PASS ' : 'FAIL ') + 'oval fabric trim V 54 / 54+12: V stacking junction +$114 fabric (2022 2022 p444: $630), CoH on the unstacked face (2022 p408): ' + ls.map(l => l.style + ' $' + l.unit).join(', ')); if (!ok) fails++; }
+    const ok = v && v.unit === A(630) + A(114) && /fabric trim/.test(v.spec) && ls.some(l => l.style === 'TS712CHS');
+    console.log((ok ? 'PASS ' : 'FAIL ') + 'oval fabric trim V 54 / 54+12: V stacking junction +$114 fabric (p444: $630, each + 9%), CoH on the unstacked face (p96-97, 2015 p81): ' + ls.map(l => l.style + ' $' + l.unit).join(', ')); if (!ok) fails++; }
 }
-// ---------- workstations: supports (p223/224/225/227/234/235/236/237), worksurfaces (p506-526), pedestals (p651/652/653/655/656) ----------
+// ---------- workstations: supports (p223/224/225/227/234/235/236/237), worksurfaces (p537-p569), pedestals (p651/652/653/655/656) ----------
 {
   const wsLines = (res) => res.lines.filter(l => /^W\d/.test(l.src) || (l.src === 'project' && l.pid === 'uw-side-support-brackets'));
   const check = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (info ? ' — ' + info : '')); if (!ok) fails++; };
@@ -407,7 +410,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   { const { P, ps } = run([72]); E.newWorksurface(P, { panel: ps[0].id, width: 72, depth: 24 }); expect('72"W on one 72" panel -> TS7WKSPT72 (p224)', wsLines(E.generate(P)), { US2472: 1, UCANT: 2, TS7WKSPT72: 1 }); }
   // 10-11. pulls are priced per pull; c:scape is proud steel only (p651, p655)
   { const { P, ps } = run([48]); const w = E.newWorksurface(P, { panel: ps[0].id, width: 48, depth: 24 }); E.addPedestal(P, w, { at: 'hi', type: 'fixed', config: 'A', front: 'P', pull: 'jazz' }); E.addPedestal(P, w, { at: 'lo', type: 'mobile', config: 'B', front: 'W', pull: 'c:scape' }); const res = E.generate(P);
-    const bbf = res.lines.find(l => l.style === 'RPF2427AP'); check('jazz pulls on a box/box/file: +$26 × 3 (2022 2022 p651: proud steel front $1000)', bbf && bbf.unit === 1000 + 78, bbf && '$' + bbf.unit);
+    const bbf = res.lines.find(l => l.style === 'RPF2427AP'); check('jazz pulls on a box/box/file: +$26 × 3 (p651: proud steel front $1000, each + 9%)', bbf && bbf.unit === A(1000) + 3 * A(26), bbf && '$' + bbf.unit);
     check('c:scape on a proud wood front -> error (p655)', wsErr(res).some(e => /c:scape/.test(e.msg))); }
   // 12. no 18"D end panel (p590)
   { const { P, ps } = run([48]); E.newWorksurface(P, { panel: ps[0].id, width: 48, depth: 18, supports: { lo: 'endpanel', hi: 'auto' } }); const res = E.generate(P); check('18"D worksurface with an end panel -> error, no UEP24', !res.lines.some(l => l.style === 'UEP24') && wsErr(res).some(e => /no 18"D end panel/.test(e.msg))); }
@@ -484,7 +487,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   const sty = (ls) => ls.map(l => (l.qty !== 1 ? l.qty + '×' : '') + l.style).join(' ');
   const cnt = (ls, st) => ls.filter(l => l.style === st).reduce((a, l) => a + l.qty, 0);
   // #1 exact splits: fewest pieces, then largest first; only an impossible span is flagged, nothing picked is dropped
-  ck('#1 splitSpan 42 trims -> 30+12, 30 stack -> 18+12, 6 is the 6"H stacker (2022 p32), 3 impossible', JSON.stringify(E.splitSpan(42, E.COH_TRIM_HEIGHTS).parts) === '[30,12]' && JSON.stringify(E.stackSplit(30).parts) === '[18,12]' && JSON.stringify(E.stackSplit(6).parts) === '[6]' && E.stackSplit(3).flag && E.stackSplit(18).parts.length === 1 && !E.stackSplit(42).flag && JSON.stringify(E.stackSplit(42).parts) === '[24,18]');
+  ck('#1 splitSpan 42 trims -> 30+12, 30 stack -> 18+12, 6 is the 6"H stacker on a base junction only (p32, p34), 3 impossible', JSON.stringify(E.splitSpan(42, E.COH_TRIM_HEIGHTS).parts) === '[30,12]' && JSON.stringify(E.stackSplit(30).parts) === '[18,12]' && JSON.stringify(E.stackSplit(6, true).parts) === '[6]' && E.stackSplit(6).flag && E.stackSplit(3).flag && E.stackSplit(18).parts.length === 1 && !E.stackSplit(42).flag && JSON.stringify(E.stackSplit(42).parts) === '[24,18]');
   { const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); E.addPanel(P, c, 0, 48, 48); E.setStack(P, E.addPanel(P, c, 90, 48, 66), [24]); const R = E.generate(P); const nl = nodeLines(P, R, c.id);
     ck('#1 thin L 48 | 66+24: 42" end-of-run CoH as 30+12 trims (p51, p383), no placeholder', cnt(nl, 'TS730TICHT') === 1 && cnt(nl, 'TS712TICHT') === 1 && !nl.some(l => l.style === '—') && !R.errors.length, sty(nl)); }
   { const P = E.newProject('oval'); const c = E.addNode(P, 0, 0); E.addPanel(P, c, 0, 48, 48); E.setStack(P, E.addPanel(P, c, 90, 48, 66), [24]); const R = E.generate(P); const nl = nodeLines(P, R, c.id);
@@ -493,7 +496,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     ck('#1 BYO in-line 48/78: TS748TIPJ + 18" and 12" end-of-run stackers (p49 Step 6, p375)', cnt(nl, 'TS748TIPJ') === 1 && cnt(nl, 'TS718TEPJS') === 1 && cnt(nl, 'TS712TEPJS') === 1 && cnt(nl, 'TS730TICHT') === 1 && !R.errors.length, sty(nl)); }
   { const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); E.setStack(P, E.addPanel(P, c, 0, 48, 42), [24]); E.addPanel(P, c, 90, 48, 54); const R = E.generate(P); const nl = nodeLines(P, R, c.id);
     ck('#1 thin L 42+24 beside 54: one 24" stacking junction (p49 Step 7, per stacked panel), not 12+12 cut at the neighbor top', cnt(nl, 'TS724TEPJS') === 1 && !cnt(nl, 'TS712TEPJS') && !nl.some(l => l.style === '—') && !R.errors.length, sty(nl)); }
-  // #2 oval: one change-of-height trim per exposed face (p95)
+  // #2 oval: one change-of-height trim per exposed face (p96)
   { const ov = (h, st) => { const P = E.newProject('oval'); const c = star(P, h); if (st) for (const [a, s] of Object.entries(st)) E.setStack(P, Object.values(P.panels).find(q => q.label === 'leg' + a), s); const R = E.generate(P); return nodeLines(P, R, c); };
     let nl = ov({ 0: 66, 90: 42, 270: 42 }); ck('#2 oval T 66 / 42 / 42: two faces -> 2 × TS724CHS', cnt(nl, 'TS724CHS') === 2, sty(nl));
     nl = ov({ 0: 66, 90: 42, 180: 42, 270: 42 }); ck('#2 oval X 66 / 42 / 42 / 42: three faces -> 3 × TS724CHS', cnt(nl, 'TS724CHS') === 3, sty(nl));
@@ -504,7 +507,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     for (const q of sp.slice(1)) { const a = P.nodes[q.a]; E.addPanel(P, a, 90, 48, 42); E.addPanel(P, a, 270, 48, 42); }
     const R = E.generate(P); const pieces = R.lines.filter(l => l.style === 'TS7CJCA10' && l.piece), pack = R.lines.filter(l => l.style === 'TS7CJCA10' && !l.piece);
     const agg = E.aggregate(R.lines).filter(a => a.style === 'TS7CJCA10'); const sif = E.toSIF(R.lines); const qt = (sif.text.match(/PN=TS7CJCA10\r\nMC=\w+\r\nCT=\w+\r\nPD=[^\r]*\r\nQT=(\d+)/) || [])[1];
-    ck('#3 aligners: pieces per junction at $0, one TS7CJCA10 package ($102, 2022 2022 p388) ordered for the job', pieces.length >= 2 && pieces.every(l => l.ext === 0) && pack.length === 1 && pack[0].qty === 1 && pack[0].ext === 102 && pack[0].src === 'project', `${pieces.map(l => l.src + ':' + l.qty).join(',')} / ${pack.map(l => l.qty + '@' + l.unit).join()}`);
+    ck('#3 aligners: pieces per junction at $0, one TS7CJCA10 package ($102 + 9%, p388) ordered for the job', pieces.length >= 2 && pieces.every(l => l.ext === 0) && pack.length === 1 && pack[0].qty === 1 && pack[0].ext === A(102) && pack[0].src === 'project', `${pieces.map(l => l.src + ':' + l.qty).join(',')} / ${pack.map(l => l.qty + '@' + l.unit).join()}`);
     ck('#3 pick list and SIF order the package once', agg.length === 1 && agg[0].qty === 1 && qt === '1', `agg ${agg.map(a => a.qty)} SIF QT ${qt}`);
     const seals = R.lines.filter(l => /ICLS$/.test(l.style)); const sp_ = seals.filter(l => l.piece).reduce((a, l) => a + l.qty, 0), pk = seals.filter(l => !l.piece);
     ck('#3 light seals: pieces summed, ceil(pieces / 4) packages', pk.length === 1 && pk[0].qty === Math.ceil(sp_ / 4), `${sp_} seals -> ${pk.map(l => l.qty)}`);
@@ -527,7 +530,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     ck('#7 in-line 48/54 (6"): the 2022 guide has the junction (TS785TCIJ, 2022 p357): no error, no placeholder', !R.errors.length && R.lines.some(l => l.style === 'TS785TCIJ') && !R.lines.some(l => l.style === '—' && l.qty > 0), R.errors.map(e => e.msg).join(' | ').slice(0, 140) + ' ' + R.lines.map(l => l.style).join());
     const P2 = E.newProject('thin'); star(P2, { 0: 48, 90: 54, 180: 30 }); const R2 = E.generate(P2);
     ck('#7 T 48/54/30 BYO: the 6" change-of-height is trimmed with the 2022 6"H trim (2022 p383-384), no error', !R2.errors.some(e => /cannot be trimmed/.test(e.msg)) && R2.lines.some(l => /^TS76T(I|CL|CT)CHT$/.test(l.style)), R2.errors.map(e => e.msg).join(' | ').slice(0, 140) + ' ' + R2.lines.map(l => l.style).join()); }
-  // #8 wall-start anchor named in the stability warning (p161)
+  // #8 wall-start anchor named in the stability warning (p162)
   { const P = E.newProject('thin'); let n = E.addNode(P, 0, 0); n.wallStart = true; for (let i = 0; i < 4; i++) { const p = E.addPanel(P, n, 0, 48, 54); n = P.nodes[p.b]; } const R = E.generate(P);
     ck('#8 wall-started 16\' run: free end measured from the wall-start junction', R.warnings.some(w => /nearest anchor \(the wall-start junction/.test(w.msg)), R.warnings.map(w => w.msg).join(' | ').slice(0, 160)); }
 }
@@ -568,7 +571,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   // corner geometry: the X's 24" leg ends 24" + 1 1/2" corner allowance out (p21, p30, E.CORNER_ALLOW), so the return starts at 25.5
   { const P = E.newProject('thin'); const c0 = E.addNode(P, 0, 0); for (const a of [0, 90, 180, 270]) E.addPanel(P, c0, a, 24, 54); run(P, 25.5, 0, 90, [24]); const c = E.panelConflicts(P); ck('X junction plus a return off one end -> no conflict', c.length === 0, c.map(x => x.msg).join()); }
   { const P = E.newProject('thin'); const c0 = E.addNode(P, 0, 0); for (const a of [0, 120, 240]) E.addPanel(P, c0, a, 24, 54); ck('Y junction of 24" panels -> no conflict', E.panelConflicts(P).length === 0); }
-  // setStack keeps the largest part of the stack that fits under 90" (p33)
+  // setStack keeps the largest part of the stack that fits under 90" (p34)
   { const P = E.newProject('thin'); const p = run(P, 0, 0, 0, [48])[0]; E.setStack(P, p, [24, 12]); E.setHeight(P, p, 78); ck('54+24+12 raised to 78 keeps the 12" stacker', p.stack.join() === '12' && p.stackSides.length === 1, JSON.stringify(p.stack)); }
   { const P = E.newProject('thin'); const p = run(P, 0, 0, 0, [48])[0]; E.setStack(P, p, [12, 24]); p.stackSides[1][0][0].type = 'steel'; E.setHeight(P, p, 66); ck('54+12+24 raised to 66 keeps the 24" stacker and its tiles', p.stack.join() === '24' && p.stackSides[0][0][0].type === 'steel', JSON.stringify(p.stack)); }
   // switching trim keeps thin-only / oval-only settings aside and restores them
@@ -614,7 +617,7 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   { const { P, ps } = run([48]); const w = E.newWorksurface(P, { panel: ps[0].id, width: 48, depth: 24 }); E.addPedestal(P, w, { at: 'hi', front: 'P', pull: 'c:scape', pullColor: '9201' }); const R = E.generate(P); const l = R.lines.find(x => /^RPF/.test(x.style));
     ck('#7 c:scape pull color: paint 4140, not metal 9201', /pull paint 4140 Arctic White Gloss/.test(l.spec) && !/pull metal/.test(l.spec), l.spec);
     w.peds[0].pull = 'bar'; w.peds[0].pullColor = '9211'; const l2 = E.generate(P).lines.find(x => /^RPF/.test(x.style)); ck('#7 bar pull keeps its metal color', /pull metal 9211 Nickel/.test(l2.spec), l2.spec); }
-  // #9 36"D (35 1/2") straights are freestanding only (p539 tip): a panel-mounted one is an error, and the planner does not offer the depth on panels
+  // #9 36"D (35 1/2") straights are freestanding only (p540 tip): a panel-mounted one is an error, and the planner does not offer the depth on panels
   { const { P, ps } = run([72]); const w = E.newWorksurface(P, { panel: ps[0].id, width: 72, depth: 36 }); const R = E.generate(P);
     ck('#9 panel-mounted 72×36 -> still listed as US3672, error: freestanding only (p539)', styles(R, w.id).includes('US3672') && errsOf(R, w.id).some(m => /freestanding/.test(m.msg || m)), JSON.stringify([styles(R, w.id), R.errors])); }
   ck('#9 36"D is not offered on panels', !E.WS_DEPTHS.includes(36));
@@ -715,28 +718,29 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   ck('dims: thin cap 5/8" = panel 54 1/4" - end-of-run trim 53 5/8" (p16, p37)', eq(E.actualBaseHeight('thin', 54) - E.CAP_FACE.thin, 53.625) && eq(E.actualBaseHeight('thin', 42) - E.CAP_FACE.thin, 41.25));
   { const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); const p = E.addPanel(P, c, 0, 54, 54); E.setStack(P, p, [12]); ck('dims: 54 + 12 stacker drawn 54 1/4 + 12 3/8 (p16, p32)', eq(E.actualTop('thin', p), 66.625), E.actualTop('thin', p)); }
   ck('dims: recessed glass by kit 6/12/18/24 = 9 5/16 / 15 1/2 / 21 11/16 / 27 7/8, clip 11 3/4 (2022 p64, p79)', eq(E.glassHeight({ attach: 'recessed', height: 6 }), 9.3125) && eq(E.glassHeight({ attach: 'recessed', height: 12 }), 15.5) && eq(E.glassHeight({ attach: 'recessed', height: 18 }), 21.6875) && eq(E.glassHeight({ attach: 'recessed', height: 24 }), 27.875) && eq(E.glassHeight({ attach: 'clip', height: 12 }), 11.75));
-  // 2022 additions: the 36"H thin-trim panel (p22, post 34 5/8" p25), the 6"H stacker (p39, p41 rules), the 6"H change-of-height trim (p30)
+  // 2022 additions: the 36"H thin-trim panel (p16, post 34 5/8" p20), the 6"H stacker (p32, p34 rules), the 6"H change-of-height trim (p24, p383)
   ck('2022: 36"H panel is a thin-trim height at 35 11/16" with a 34 5/8" post; not offered on square or oval trim', E.heightsFor('thin').includes(36) && !E.heightsFor('oval').includes(36) && !E.heightsFor('square').includes(36) && eq(E.actualBaseHeight('thin', 36), 35.6875) && E.ACTUAL.junctionHeight[36] === '34 5/8"');
   ck('2022: 6"H stacker is 6 3/16" and offered alone only; 6"H change-of-height trim exists', eq(E.STACK_ACTUAL[6], 6.1875) && E.stackOptions(42).some(st => st.length === 1 && st[0] === 6) && !E.stackOptions(42).some(st => st.length === 2 && st.includes(6)) && E.COH_TRIM_HEIGHTS_THIN.includes(6) && !E.COH_TRIM_HEIGHTS.includes(6));
   { const T = E.newProject('thin'); const n = E.addNode(T, 0, 0); const q = E.addPanel(T, n, 0, 36, 36); const R = E.generate(T);
-    const j = R.lines.filter(l => /^TS736T[A-Z]*J$/.test(l.style) || /^TS736TE/.test(l.style)); ck('2022: a 36"W x 36"H thin panel specifies with 36"H end-of-run junctions (TS736TEPJ, p364) and no errors', !R.errors.length && R.lines.some(l => l.style === 'TS736TEPJ'), JSON.stringify([R.errors, R.lines.map(l => l.style)]));
-    const q2 = E.addPanel(T, T.nodes[q.b], 0, 36, 42); E.setStack(T, q2, [6]); const R2 = E.generate(T); ck('2022: a 6"H stacker on a 42" panel specifies a 6"H stacking end-of-run junction (TS76TEPJS, p388) with no stacking frame package (p41) and a 6"H change-of-height trim at the in-line change of height', R2.lines.some(l => l.style === 'TS76TEPJS') && !R2.lines.some(l => /HFS$/.test(l.style) && l.qty && /6"/.test(l.desc || '') && false), JSON.stringify(R2.lines.map(l => l.style + 'x' + l.qty)));
-    q2.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; const R3 = E.generate(T); ck('2022: frameless glass on a 6"H stacker is refused (p41)', R3.errors.some(e => /6"H stacking junction/.test(e.msg)), JSON.stringify(R3.errors)); q2.glassScreen = null;
+    const j = R.lines.filter(l => /^TS736T[A-Z]*J$/.test(l.style) || /^TS736TE/.test(l.style)); ck('2022: a 36"W x 36"H thin panel specifies with 36"H end-of-run junctions (TS736TEPJ, p355) and no errors', !R.errors.length && R.lines.some(l => l.style === 'TS736TEPJ'), JSON.stringify([R.errors, R.lines.map(l => l.style)]));
+    const q2 = E.addPanel(T, T.nodes[q.b], 0, 36, 42); E.setStack(T, q2, [6]); const R2 = E.generate(T);
+    ck('2022: a 6"H stacker on the taller panel of an in-line change of height is refused: that junction ends in an end-of-run stacking junction (p357) and the 6"H stacker goes on a base junction only (p34)', R2.errors.some(e => /never on top of another stacking junction/.test(e.msg)) && !R2.lines.some(l => /HFS$/.test(l.style)), JSON.stringify([R2.errors, R2.lines.map(l => l.style + 'x' + l.qty)]));
+    q2.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; const R3 = E.generate(T); ck('2022: frameless glass on a 6"H stacker is refused (p34, p65)', R3.errors.some(e => /6"H stacking junction/.test(e.msg)), JSON.stringify(R3.errors)); q2.glassScreen = null;
     const T2 = E.newProject('oval'); const m = E.addNode(T2, 0, 0); E.addPanel(T2, m, 0, 36, 36); ck('2022: 36"H on oval trim is refused', E.generate(T2).errors.some(e => /36"H is a thin-trim height/.test(e.msg))); }
   // 2022 additions: Universal and Sarto screens with the thin trim top cap (p402-403, rules p70-73) and back painted glass skins (p500-502)
   { const T = E.newProject('thin'); const n = E.addNode(T, 0, 0); const q = E.addPanel(T, n, 0, 48, 42); q.topCapScreen = { kind: 'universal', height: 13.5 }; const R = E.generate(T);
     const sc = R.lines.find(l => l.style === 'TS71348TUSC'); const fr = R.lines.find(l => /omit top cap/.test(l.spec));
-    ck('2022: a 48"W 42"H thin panel with a 13 1/2" Universal screen specifies TS71348TUSC at $777 and omits the frame package top cap (p402, p70)', !R.errors.length && sc && sc.unit === 777 && fr && /omit top cap/.test(fr.spec), JSON.stringify([R.errors, sc && sc.unit, fr && fr.spec]));
+    ck('2022: a 48"W 42"H thin panel with a 13 1/2" Universal screen specifies TS71348TUSC at $777 + 9% and omits the frame package top cap (p402, p70)', !R.errors.length && sc && sc.unit === A(777) && fr && /omit top cap/.test(fr.spec), JSON.stringify([R.errors, sc && sc.unit, fr && fr.spec]));
     q.topCapScreen = { kind: 'sarto', height: 19.5 }; const R2 = E.generate(T); const s2 = R2.lines.find(l => l.style === 'TS71948TSSC');
-    ck('2022: the 19 1/2" Sarto screen on the same panel is TS71948TSSC at $712 (p403), drawn 18 1/2" of screen (p72)', s2 && s2.unit === 712 && E.topCapScreenHeight(q.topCapScreen) === 18.5, JSON.stringify(s2 && s2.unit));
+    ck('2022: the 19 1/2" Sarto screen on the same panel is TS71948TSSC at $712 + 9% (p403), drawn 18 1/2" of screen (p72)', s2 && s2.unit === A(712) && E.topCapScreenHeight(q.topCapScreen) === 18.5, JSON.stringify(s2 && s2.unit));
     q.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; E.generate(T); ck('2022: a top cap screen and a frameless glass screen do not share a panel: the glass is removed', !q.glassScreen && !!q.topCapScreen);
     E.setStack(T, q, [6]); E.generate(T); ck('2022: a top cap screen is removed from a panel segment with a 6" stacker (p71)', !q.topCapScreen);
     E.setStack(T, q, []); q.sides[0][0] = { kind: 'skin', type: 'back painted glass', height: 36, magneticBacker: true }; q.sides[1][0] = { kind: 'skin', type: 'back painted glass', height: 36 }; const R3 = E.generate(T); const g = R3.lines.filter(l => l.style === 'TS73648GS');
-    ck('2022: 36"H back painted glass skins on a 48"W panel are TS73648GS at $2325 base, +$980 with the magnetic backer (p501)', g.length === 2 && g.some(l => l.unit === 2325) && g.some(l => l.unit === 2325 + 980), JSON.stringify(g.map(l => [l.unit, l.spec]))); }
+    ck('2022: 36"H back painted glass skins on a 48"W panel are TS73648GS at $2325 base, +$980 with the magnetic backer, each + 9% (p501)', g.length === 2 && g.some(l => l.unit === A(2325)) && g.some(l => l.unit === A(2325) + A(980)), JSON.stringify(g.map(l => [l.unit, l.spec]))); }
   ck('dims: glass 47 7/8 recessed, 47 3/4 clip, 47 7/16 / 47 1/4 with a change-of-height end on a 48 (p64, p68)', eq(48 - 2 * E.GLASS.recessed.end, 47.875) && eq(48 - 2 * E.GLASS.clip.end, 47.75) && eq(48 - E.GLASS.recessed.end - E.GLASS.recessed.cohEnd, 47.4375) && eq(48 - E.GLASS.clip.end - E.GLASS.clip.cohEnd, 47.25));
-  ck('dims: oval top screen 45 1/2" on a 48 (p111)', eq(48 - 2 * E.TOP_SCREEN.inset, 45.5) && eq(E.TOP_SCREEN.height, 12));
-  { const P = E.newProject('oval'); ck('dims: oval change-of-height trim 1 1/8" slim, 2 1/4" cable routing (p95)', eq(E.cohTrimWidth(P), 1.125) && (P.options.ovalCohProfile = 'Cable-Routing Capability', eq(E.cohTrimWidth(P), 2.25))); }
-  ck('dims: open base 3 1/4" with 2 1/2" opening (p59), worksurface 1 3/16" thick (p222)', eq(E.OPEN_BASE.height, 3.25) && eq(E.OPEN_BASE.opening, 2.5) && eq(E.WS_THICK, 1.1875));
+  ck('dims: oval top screen 45 1/2" on a 48 (p113)', eq(48 - 2 * E.TOP_SCREEN.inset, 45.5) && eq(E.TOP_SCREEN.height, 12));
+  { const P = E.newProject('oval'); ck('dims: oval change-of-height trim 1 1/8" slim, 2 1/4" cable routing (p96)', eq(E.cohTrimWidth(P), 1.125) && (P.options.ovalCohProfile = 'Cable-Routing Capability', eq(E.cohTrimWidth(P), 2.25))); }
+  ck('dims: open base 3 3/4" with 2 1/2" opening (p59), worksurface 1 3/16" thick (p222)', eq(E.OPEN_BASE.height, 3.75) && eq(E.OPEN_BASE.opening, 2.5) && eq(E.WS_THICK, 1.1875));
   // DXF: panel body between the posts, end-of-run post and trim, in-line post 1 1/2" along the run
   { const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); const a = E.addPanel(P, c, 0, 48, 54); E.addPanel(P, P.nodes[a.b], 0, 48, 54); const R = E.generate(P); const d = E.toDXF(P, R).split('\r\n');
     const polys = []; let cur = null; for (let i = 0; i < d.length; i += 2) { const k = d[i], v = d[i + 1]; if (k === '0' && v === 'POLYLINE') cur = { layer: null, pts: [] }; else if (cur && k === '8' && cur.layer === null) cur.layer = v; else if (cur && k === '10') cur.pts.push([+v]); else if (cur && k === '20') cur.pts[cur.pts.length - 1].push(+v); else if (k === '0' && v === 'SEQEND') { polys.push(cur); cur = null; } }
@@ -811,6 +815,63 @@ function check(name, ok, info) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
   { const P = E.newProject('thin'); const n = E.addNode(P, 0, 0); let m = n; const ps = []; for (const a of [0, 0, 90, 180, 180, 270]) { const q = E.addPanel(P, m, a, 48, 54); ps.push(q); m = P.nodes[q.b]; }
     const before = JSON.stringify(P.nodes); E.addPanel(P, P.nodes[ps[0].b], 270, 24, 54); const r = E.normalizeGeometry(P, { dry: true });
     ck('an in-line junction of a closed loop turned into a T no longer fits the loop: reported, the loop left as it was', ps[5].b === n.id && r.loops.length > 0 && Object.entries(JSON.parse(before)).every(([id, q]) => near(P.nodes[id].x, q.x) && near(P.nodes[id].y, q.y)), JSON.stringify(r)); }
+}
+// ---------- review fixes 2026-09-27: price adjustment, 6"H stacker, windows, glass, technology and back painted glass skins ----------
+{
+  const t = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok || info === undefined ? '' : ' — ' + info)); if (!ok) fails++; };
+  const rawRow = (style) => { for (const p of RAW.products) for (const r of p.rows) if (r.style === style) return r; return null; };
+  const rawOpt = (pid, code) => (RAW.products.find(p => p.id === pid).options || []).find(o => o.code === code);
+  const liveOpt = (pid, code) => (E.product(pid).options || []).find(o => o.code === code);
+  // p1: 9% from July 18, 2022, each price rounded to the dollar on its own
+  t('price: the July 18, 2022 adjustment adds 9% to each printed price, rounded to the dollar (p1)', E.PRICE_ADJUST.factor === 1.09 && A(87) === 95 && A(50) === 55 && A(-3) === -3 && A(-10) === -11 && A(0) === 0 && A(null) === null, [A(87), A(50), A(-3), A(-10)].join());
+  t('price: a row carries the printed June 2022 price + 9% (TS748THF)', E.rowsByStyle('TS748THF')[0].price === A(rawRow('TS748THF').price), E.rowsByStyle('TS748THF')[0].price + ' vs ' + rawRow('TS748THF').price);
+  t('price: option prices and bands are adjusted too', liveOpt('thin-base-horizontal-frame-package', 'paintGroup2').price === A(rawOpt('thin-base-horizontal-frame-package', 'paintGroup2').price) && liveOpt('thin-panel-package', 'woodTopCap').priceBy['18W-48W'] === A(rawOpt('thin-panel-package', 'woodTopCap').priceBy['18W-48W']));
+  { const c2 = JSON.parse(JSON.stringify(RAW)); E.init(c2); const a1 = c2.products[0].rows[0].price; E.init(c2); const a2 = c2.products[0].rows[0].price; E.init(cat);
+    t('price: E.init adjusts a catalog once, however often it is called', a1 === a2 && a1 === A(RAW.products[0].rows[0].price) && E.rowsByStyle('TS748THF')[0].price === A(rawRow('TS748THF').price), [a1, a2].join()); }
+  // 6"H stacker (p34, p139, p505)
+  { const P = E.newProject('thin'); const n = E.addNode(P, 0, 0); const q = E.addPanel(P, n, 0, 48, 42); E.setStack(P, q, [6]); const R = E.generate(P);
+    const six = R.lines.filter(l => l.style === 'TS76TEPJS'), tech = R.lines.filter(l => /technology skin 48"W × 6"H, None cutouts/.test(l.desc));
+    t('6"H stacker on a lone 42"H panel: two 6"H end-of-run stacking junctions on the base junctions, no stacking frame package (p34), no errors', !R.errors.length && six.reduce((a, l) => a + l.qty, 0) === 2 && !R.lines.some(l => /HFS$/.test(l.style)), JSON.stringify([R.errors, R.lines.map(l => l.style + 'x' + l.qty)]));
+    t('6"H stacker tier: one 6"H steel technology skin without cutouts per side (TS7648HS, p139, p505), never a 60"H skin', tech.length === 2 && tech.every(l => l.style === 'TS7648HS') && !R.lines.some(l => /× 60"H/.test(l.desc)), JSON.stringify(R.lines.filter(l => l.cat === 'Skins').map(l => l.style + ' ' + l.desc)));
+    t('6"H stacking end-of-run junction ships with one fork connector (p33)', six.length && (six[0].contents || []).some(c => /fork connector/.test(c.item) && c.qty === 1), JSON.stringify(six[0] && six[0].contents));
+    q.sides = [[{ kind: 'skin', type: 'tackable acoustical', height: 24 }, { kind: 'window', height: 12 }], [{ kind: 'skin', type: 'tackable acoustical', height: 24 }, { kind: 'window', height: 12 }]]; const R2 = E.generate(P);
+    t('a window in the top of the base panel under a 6"H stacker is an error (p34, p141)', R2.errors.some(e => /top position of a panel segment that has a 6"H stacker/.test(e.msg)), JSON.stringify(R2.errors)); }
+  t('6"H stacker offered on thin trim only (p441-p444)', E.stackOptions(42, 'thin').some(s => s.length === 1 && s[0] === 6) && !E.stackOptions(42, 'oval').some(s => s.includes(6)) && !E.stackOptions(42, 'square').some(s => s.includes(6)));
+  { const P = E.newProject('oval'); const n = E.addNode(P, 0, 0); const q = E.addPanel(P, n, 0, 48, 42); E.setStack(P, q, [6]); const R = E.generate(P);
+    t('a 6"H stacker left on an oval job is an error, not an unpriced part', R.errors.some(e => /thin trim only/.test(e.msg)), JSON.stringify(R.errors)); }
+  // no line prints an undefined style: a 36"H panel left on an oval job
+  { const P = E.newProject('oval'); const n = E.addNode(P, 0, 0); E.addPanel(P, n, 0, 48, 36); const R = E.generate(P);
+    t('every line has a style: a part the guide lacks prints "—" with a flag', R.lines.every(l => typeof l.style === 'string' && l.style !== 'undefined') && R.lines.filter(l => l.style === '—').every(l => l.flags.length), JSON.stringify(R.lines.map(l => l.style))); }
+  // X change-of-height junction, three tall legs (p367)
+  { const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); for (const [a, h] of [[0, 48], [90, 48], [180, 48], [270, 36]]) E.addPanel(P, c, a, 48, h); const R = E.generate(P);
+    t('X change of height 48/48/48/36 specifies the pre-configured TS7888QTCXJ (p367)', R.lines.some(l => l.style === 'TS7888QTCXJ'), JSON.stringify(R.lines.filter(l => l.cat === 'Junction').map(l => l.style))); }
+  { const P = E.newProject('thin'); const c = E.addNode(P, 0, 0); for (const [a, h] of [[0, 54], [90, 54], [180, 54], [270, 48]]) E.addPanel(P, c, a, 48, h); const R = E.generate(P);
+    t('X change of height 54/54/54/48 specifies TS75558TCXJ (p367)', R.lines.some(l => l.style === 'TS75558TCXJ'), JSON.stringify(R.lines.filter(l => l.cat === 'Junction').map(l => l.style))); }
+  // windows (p140)
+  { const P = E.newProject('thin'); const n = E.addNode(P, 0, 0); const q = E.addPanel(P, n, 0, 48, 48); const fab = (h) => ({ kind: 'skin', type: 'tackable acoustical', height: h });
+    q.sides = [[fab(24), { kind: 'window', height: 18 }], [fab(24), { kind: 'window', height: 18 }]]; E.setStack(P, q, [12]); q.stackSides[0] = [[{ kind: 'window', height: 12 }], [{ kind: 'window', height: 12 }]]; const R = E.generate(P);
+    t('an 18"H window in the top of a base panel takes no stacked window (p140)', R.warnings.some(w => /18"H glass window in the top of a base panel/.test(w.msg)), JSON.stringify(R.warnings.map(w => w.msg)));
+    q.sides = [[fab(30), { kind: 'window', height: 12 }], [fab(30), { kind: 'window', height: 12 }]]; E.setStack(P, q, [18]); q.stackSides[0] = [[{ kind: 'window', height: 18 }], [{ kind: 'window', height: 18 }]]; const R2 = E.generate(P);
+    t('only 12"H windows stack on each other (p140)', R2.warnings.some(w => /Only 12"H glass windows can be stacked/.test(w.msg)), JSON.stringify(R2.warnings.map(w => w.msg)));
+    q.stackSides[0] = [[{ kind: 'window', height: 12 }, fab(6)], [{ kind: 'window', height: 12 }, fab(6)]]; E.setStack(P, q, [12]); q.stackSides[0] = [[{ kind: 'window', height: 12 }], [{ kind: 'window', height: 12 }]]; const R3 = E.generate(P);
+    t('two 12"H windows stacked are allowed (p140)', !R3.warnings.some(w => /Only 12"H|cannot accommodate/.test(w.msg)), JSON.stringify(R3.warnings.map(w => w.msg))); }
+  // frameless glass (p64, p65, p396)
+  { const P = E.newProject('thin'); const n = E.addNode(P, 0, 0); const q = E.addPanel(P, n, 0, 60, 42); q.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; const R = E.generate(P); const g = R.lines.find(l => l.pid === 'thin-frameless-glass-screen-recessed');
+    t('a 60"W recessed glass kit flags the additional support clamps T522096SR/T522097SR (p65)', g && g.flags.some(f => /T522096SR/.test(f)), JSON.stringify(g && g.flags));
+    const q2 = E.addPanel(P, P.nodes[q.b], 0, 72, 42); q2.glassScreen = { attach: 'recessed', height: 12, frosted: false, omitGlass: false }; const R2 = E.generate(P); const g2 = R2.lines.find(l => l.pid === 'thin-frameless-glass-screen-recessed' && /72"W/.test(l.desc));
+    t('a 72"W recessed glass kit ships three glass supports (p64, p396)', g2 && g2.contents.some(c => /glass support/.test(c.item) && c.qty === 3), JSON.stringify(g2 && g2.contents)); }
+  // technology skins (p139)
+  { const P = E.newProject('thin'); const n = E.addNode(P, 0, 0); const q = E.addPanel(P, n, 0, 48, 54); const fab = (h) => ({ kind: 'skin', type: 'tackable acoustical', height: h });
+    q.sides = [[fab(18), { kind: 'skin', type: 'technology', height: 18, cutouts: 'All' }, fab(12)], [fab(18), fab(18), fab(12)]]; const R = E.generate(P); const tl = R.lines.find(l => /technology skin 48"W × 18"H/.test(l.desc));
+    t('an 18"H technology skin 18" up is flagged: 12"H increments from the bottom (p139)', tl && tl.flags.some(f => /12"H increments/.test(f)), JSON.stringify(tl && tl.flags));
+    q.sides = [[fab(12), { kind: 'skin', type: 'technology', height: 18, cutouts: 'All' }, fab(18)], [fab(12), fab(18), fab(18)]]; const R2 = E.generate(P); const t2 = R2.lines.find(l => /technology skin 48"W × 18"H/.test(l.desc));
+    t('an 18"H technology skin 12" up is fine (p139)', t2 && !t2.flags.some(f => /12"H increments/.test(f)), JSON.stringify(t2 && t2.flags)); }
+  // back painted glass (p137, p500)
+  { const P = E.newProject('thin'); P.finishes.skinType = 'back painted glass'; const n = E.addNode(P, 0, 0); E.addPanel(P, n, 0, 48, 48); const R = E.generate(P); const g = R.lines.filter(l => /Back painted glass skin/.test(l.desc));
+    t('back painted glass over back painted glass on one frame is flagged (p137); the glass color is required (p500)', g.length >= 2 && g.every(l => l.flags.some(f => /monolithic/.test(f))) && g.every(l => l.flags.some(f => /color is required/.test(f))), JSON.stringify(g.map(l => l.flags))); }
+  // discontinued part
+  { const P = E.newProject('thin'); P.manual = [{ style: 'TS7CNTSTKR', qty: 1 }]; const R = E.generate(P); const l = R.lines.find(x => x.style === 'TS7CNTSTKR');
+    t('TS7CNTSTKR, absent from the June 2022 guide, is flagged when ordered', l && l.flags.some(f => /discontinued/.test(f)), JSON.stringify(l && l.flags)); }
 }
 console.log(fails ? `\n${fails} FAILURES` : '\nALL PASS');
 process.exit(fails ? 1 : 0);

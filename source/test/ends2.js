@@ -15,5 +15,5 @@ const { chromium } = require('playwright');
   const eb = await pg.locator('#elev').boundingBox(); const J = await pg.evaluate(() => 0);
   for (const [n, fx] of [['left', 0.02], ['mid', 0.5], ['right', 0.95]]) await pg.screenshot({ path: `test/overlap/elev_${n}.png`, clip: { x: eb.x + eb.width * fx - 70, y: eb.y + 10, width: 140, height: 120 } });
   await pg.locator('#planwrap').screenshot({ path: 'test/overlap/plan_run.png' });
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; await b.close();
 })();

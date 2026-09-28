@@ -7,4 +7,4 @@ const { chromium } = require('playwright'); const fs = require('fs');
   ck('CAP DXF downloads as AutoCAD 2000 with CAP symbol blocks', /_CAP\.dxf$/.test(dl.suggestedFilename()) && /\$ACADVER\n1\nAC1015/.test(txt) && /\nCAPPN\n/.test(txt) && /P_TS7/.test(txt), dl.suggestedFilename());
   const [dl2] = await Promise.all([pg.waitForEvent('download'), pg.click('#bDxfPlain')]); const t2 = fs.readFileSync(await dl2.path(), 'utf8');
   ck('lines-only DXF is still the R12 file', /_plan\.dxf$/.test(dl2.suggestedFilename()) && /AC1009/.test(t2));
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); await b.close(); })();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); if (fails) process.exitCode = 1; await b.close(); })();

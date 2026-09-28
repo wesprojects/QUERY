@@ -71,6 +71,6 @@ const near = (a, b, t) => Math.abs(a - b) <= (t === undefined ? 0.01 : t);
   s = await state(); const xs = Object.values(s.nodes).map(n => n.x);
   ck('deleting the new leg from the menu: back to an end of run, 96" end to end', vert.length === 2 && s.panels.length === 2 && !Object.values(s.types).includes('L') && near(Math.max(...xs) - Math.min(...xs), 96), JSON.stringify([s.nodes, s.types]));
 
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
   console.log(fails ? `\n${fails} FAILURES` : '\nALL PASS'); await b.close(); process.exit(fails ? 1 : 0);
 })();

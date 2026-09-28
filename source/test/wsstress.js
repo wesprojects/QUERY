@@ -21,5 +21,5 @@ const { chromium } = require('playwright');
     await pg.click('#zFit'); await pg.locator('#planwrap').screenshot({ path: `test/overlap/stress_${nm.replace(/\W+/g, '_')}.png` });
     if (r.err.length) bad++; console.log(`${nm}: ws [${r.ws}]` + (r.err.length ? '\n  ERR ' + r.err.join('\n  ERR ') : ' — no errors'));
   }
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(bad ? `${bad} typicals with errors` : 'ALL CLEAN'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(bad ? `${bad} typicals with errors` : 'ALL CLEAN'); if (bad) process.exitCode = 1; await b.close();
 })();

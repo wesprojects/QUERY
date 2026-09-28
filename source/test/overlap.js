@@ -120,5 +120,5 @@ const HOOK = () => {
   }
   fs.writeFileSync(`${OUT}/report.json`, JSON.stringify(report, null, 1));
   let n = 0; for (const [k, v] of Object.entries(report)) { if (!v.length) continue; console.log(`\n## ${k} (${v.length})`); v.slice(0, 40).forEach(x => console.log('  ' + x)); n += v.length; }
-  console.log('\nTOTAL', n); await b.close();
+  console.log('\nTOTAL', n); if (n) process.exitCode = 1; await b.close();
 })();

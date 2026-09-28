@@ -185,7 +185,7 @@ const ck = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (
     ck('#15 New on another stage leaves the empty plan at its default view once it shows', e.s === 3 && e.ox === 80 && Math.abs(e.oy - (e.h - 80)) < 1, JSON.stringify(e));
     await ctxClose(T); }
 
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
   console.log(fails ? `${fails} FAILURES` : 'ALL PASS'); await b.close(); process.exit(fails ? 1 : 0);
   async function ctxClose(T) { await T.ctx.close(); }
 })();

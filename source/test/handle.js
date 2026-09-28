@@ -24,5 +24,5 @@ const { chromium } = require('playwright');
   const r = await pg.evaluate(() => { const P = window.answerDebug.P(), R = window.ANSWER.generate(P); const drawn = Object.values(P.worksurfaces).flatMap(w => w._supports || []).filter(s => s.kind === 'cantilever').length; const spec = R.lines.filter(l => l.pid === 'uw-cantilever').reduce((a, l) => a + l.qty, 0); return { drawn, spec, err: R.errors.map(e => e.msg) }; });
   ck('cantilevers drawn = cantilevers specified', r.drawn === r.spec && r.spec > 0, JSON.stringify(r));
   await pg.locator('#planwrap').screenshot({ path: 'test/overlap/handle.png' });
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); if (fails) process.exitCode = 1; await b.close();
 })();

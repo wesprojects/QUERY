@@ -19,6 +19,6 @@ const { chromium } = require('playwright');
   await pg.selectOption('#specGroup', 'area'); const [dl2] = await Promise.all([pg.waitForEvent('download'), pg.click('#bSpecSif')]);
   const t2 = require('fs').readFileSync(await dl2.path(), 'utf8'); console.log('tags:', [...new Set(t2.match(/^TG=.*$/gm))].join(' | '));
   console.log(await pg.textContent('#toast'));
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

@@ -15,6 +15,9 @@ CODES = {'3': 30, 'Q': 36, '4': 42, '8': 48, '5': 54, '6': 66, '7': 78}
 HEIGHT_ATTRS = ('heightA', 'heightB', 'heightC', 'heightD')
 NUM_ATTRS = ('height', 'stackHeight', 'width', 'depth')
 
+def join_names(ns):  # 'A', 'A and B', 'A, B and C' as the original rows word it
+    return ns[0] if len(ns) == 1 else ', '.join(ns[:-1]) + ' and ' + ns[-1]
+
 def skeleton(s): return re.sub(r'[0-9Q]', '', s)
 def split(s):
     m = re.match(r'^(TS7|TS6|TS5)([0-9Q]+)([A-Z0-9]*)$', s)
@@ -30,7 +33,7 @@ def new_attrs(sib, s):
         if len(codes_s) != len(legs) or len(codes_n) != len(legs) or any(ch not in CODES for ch in codes_n): return None
         for k, ch in zip(legs, codes_n): a[k] = CODES[ch]
         tall = max(a[k] for k in legs); names = [k[-1] for k in legs]
-        a['configuration'] = ' and '.join(n for n, k in zip(names, legs) if a[k] == tall) + ' tall; ' + ' and '.join(n for n, k in zip(names, legs) if a[k] != tall) + ' low'
+        a['configuration'] = join_names([n for n, k in zip(names, legs) if a[k] == tall]) + ' tall; ' + join_names([n for n, k in zip(names, legs) if a[k] != tall]) + ' low'  # the siblings' wording: 'A, B and C tall'
         return a
     nums = [k for k in NUM_ATTRS if k in a and isinstance(a[k], (int, float)) and float(a[k]).is_integer()]
     # the sibling's numeric part is the concatenation of its numeric attrs in some order

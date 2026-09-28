@@ -25,10 +25,10 @@ upsert('thin-recessed-frameless-glass-top-cap-connector', {'attrs': {'descriptio
 P['thin-recessed-frameless-glass-top-cap-connector']['name'] = 'Recessed Frameless Glass Top Cap Connector and Junction Grommets for Frameless Glass—Thin Trim'
 
 # Pedestal cushion tops for field installation on RPM2421C__ only (guide2022 p656)
-for s, price, handle, d, note in (('RPXTC24F', 443, False, 22.625, 'For use with RPM2421CF only'), ('RPXTC24P', 443, False, 23.5, 'For use with RPM2421CP, RPM2421CL, and RPM2421CW only'),
-                                   ('RPXTCH24F', 595, True, 22.625, 'For use with RPM2421CF only'), ('RPXTCH24P', 595, True, 23.5, 'For use with RPM2421CP, RPM2421CL, and RPM2421CW only')):
+for s, price, handle, d, note in (('RPXTC24F', 443, False, '22 5/8', 'For use with RPM2421CF only'), ('RPXTC24P', 443, False, '23 1/2', 'For use with RPM2421CP, RPM2421CL, and RPM2421CW only'),
+                                   ('RPXTCH24F', 595, True, '22 5/8', 'For use with RPM2421CF only'), ('RPXTCH24P', 595, True, '23 1/2', 'For use with RPM2421CP, RPM2421CL, and RPM2421CW only')):
     upsert('us-mobile-pedestals', {'group': 'Pedestal Cushion Top for Field Installation on RPM2421C__ only', 'style': s, 'desc': f'Cushion top {"with black handle" if handle else "without handle"}, {d}"D x 15"W x 2 1/4"H ({note})',
-           'attrs': {'kind': 'cushion top', 'handle': handle, 'actualDepth': d, 'width': 15, 'height': 2.25, 'forPedestal': 'RPM2421C'}, 'price': price, 'page': 656})
+           'attrs': {'kind': 'cushion top', 'handle': handle, 'actualDepth': {'22 5/8': 22.625, '23 1/2': 23.5}[d], 'width': 15, 'height': 2.25, 'forPedestal': 'RPM2421C'}, 'price': price, 'page': 656})
 
 # Parametric markerboard surface for steel skins (guide2022 p481): one style, priced by width band x height band
 bands_w = [(12, 17.9375), (18, 23.9375), (24, 29.9375), (30, 35.9375), (36, 41.9375), (42, 47.9375), (48, 53.9375), (54, 59.9375), (60, 65.9375), (66, 71.9375), (72, 77.9375), (78, 83.9375), (84, 89.9375), (90, 95.9375), (96, 96)]

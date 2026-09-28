@@ -29,5 +29,5 @@ const { chromium } = require('playwright');
   }
   const hits2 = await pg.evaluate(() => window.answerDebug.elevHits().filter(o => o.kind === 'tile').map(o => ({ x: o.x + o.w / 2, y: o.y + o.h / 2 }))); const tile = hits2[0]; await pg.mouse.click(eb.x + tile.x, eb.y + tile.y); await pg.waitForTimeout(1500);
   await pg.locator('#planwrap').screenshot({ path: 'test/overlap/elevpick_plan.png' }); await pg.locator('#elevwrap').screenshot({ path: 'test/overlap/elevpick_elev.png' });
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); if (fails) process.exitCode = 1; await b.close();
 })();

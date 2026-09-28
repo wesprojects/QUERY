@@ -39,5 +39,5 @@ const { chromium } = require('playwright');
   ck('60"W × 30"D goes on a 30" panel, spanning to the next junction', w.join() === '60x30', w.join());
   // toolbar width select
   const opts = await pg.$$eval('#optWsWidth option', o => o.map(x => x.value)); ck('Add worksurface has a width choice', opts.includes('auto') && opts.includes('60'), opts.join(','));
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); if (fails) process.exitCode = 1; await b.close();
 })();

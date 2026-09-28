@@ -7,6 +7,6 @@ const { chromium } = require('playwright');
   await pg.click('#zFit'); await pg.waitForTimeout(200); await pg.click('#zIn'); await pg.waitForTimeout(200);
   await pg.mouse.click(box.x + box.width / 2 + 60, box.y + 40); await pg.waitForTimeout(300);
   await pg.screenshot({ path: 'test/p_posts.png' });
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

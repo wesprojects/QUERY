@@ -22,6 +22,6 @@ const { chromium } = require('playwright');
   console.log('issues:', JSON.stringify(issues));
   const parts = await pg.$$eval('.partcard .sn', e => e.map(x => x.textContent)); console.log('parts:', parts.join(', '));
   await pg.screenshot({ path: 'test/p_tiles.png', fullPage: true });
-  console.log(errs.length ? errs.join('\n') : 'no page errors');
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1;
   await b.close();
 })();

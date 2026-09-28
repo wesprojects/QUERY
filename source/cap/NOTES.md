@@ -3,7 +3,7 @@
 **Status: implemented in `src/capdxf.js` (`E.toCapDXF`), wired to Export DXF for CAP, verified by `test/capdxf.js`. R2000 confirmed accepted by CAP.**
 
 Goal: the planner's DXF must open in AutoCAD and list its parts in CAP (Configura/2020 CAP Worksheet), with every part number
-identical to the Specification tab. Nothing in the export may leave the Feb 2015 Answer Specification Guide.
+identical to the Specification tab. Nothing in the export may leave the Answer Specification Guide (June 2022 since September 25, 2026; these notes were written against the February 2015 guide).
 
 ## What CAP reads (decoded from the customer's CAP drawing `QQ - 6X6X66 - 6 PACK.dxf`, AutoCAD 2013 / AC1027)
 
@@ -48,7 +48,7 @@ identical to the Specification tab. Nothing in the export may leave the Feb 2015
 
 `TS7UCANT` (guide UCANT), `USSBR-L`/`USSBR-R` (guide USSBR, a pair), `5TS76BPX` (guide TS76BPX), Conklin Avenir worksurfaces WLU...
 and pedestals 5C... (the app specifies Steelcase Universal US.../UCC... and RPF...). CAP's panel breakdown is frame TS736HF + skins
-TS76036TK (oval reman); the app's thin spec is the panel package TS76636TTF (skins included, p66) or frame TS748THF + skins.
+TS76036TK (oval reman); the app's thin spec is the panel package TS76636TTF (skins included, 2015 p66; 2022 p78, priced p407) or frame TS748THF + skins.
 
 ## Implementation plan for `E.toCapDXF(P, res, opts)` (new file src/capdxf.js, appended after engine.js by build.py)
 
@@ -90,7 +90,7 @@ TS76036TK (oval reman); the app's thin spec is the panel package TS76636TTF (ski
   clips at 28.7-29.1), so on a 42" panel the glass ends flush with the top cap instead of standing 12" above it; in v1 the 42" top cap stays at
   41.02-41.42 under the stacked window instead of moving to the top of the stack; the change-of-height L junction `3TCLJ45` is a 3 x 3 column to
   53.77 with the trim on one face, so junction bodies are inconsistent between same-height and change-of-height. Heights also differ from the guide:
-  CAP's 42" panel tops out at 41.42 (guide 41 7/8", p11) with a 4" base trim (guide 3 3/4", p50).
+  CAP's 42" panel tops out at 41.42 (guide 41 7/8", p16) with a 4" base trim (guide 3 3/4", p58).
 * What we write instead (`src/capdxf.js`, `E.toCapDXF`): a `3_<name>` twin for every `P_<name>` block, built from the guide (README "3D blocks in
   the CAP export"), checked by `test/cap3d.js`; `cap/iso3d.py in.dxf out.svg [scale] [azimuth]` renders the 3D blocks of any CAP DXF for eyeballing.
   Still open: whether CAP's 3D view picks up `3_<name>` twins of blocks it did not author (the settled fact says it keeps them), and whether the

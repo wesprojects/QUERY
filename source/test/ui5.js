@@ -1,5 +1,5 @@
 // Places four typicals side by side through the interface and checks the job ends with four workstations and no issues.
-// Spine with fins (78" panels: seismic review, p148) and Benching divider (15' run with no return, p150) carry guide warnings by design, so they are left out here.
+// Spine with fins (78" panels: seismic review, p148) and Benching divider (15' run with no return, p151) carry guide warnings by design, so they are left out here.
 const { chromium } = require('playwright');
 (async () => {
   const b = await chromium.launch(); const pg = await b.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
   let fails = 0; const ck = (n, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + n + (ok ? '' : ' — ' + info)); if (!ok) fails++; };
   ck('four typicals placed, four workstations', /^4 workstations/.test(info), info);
   ck('no issues', !issues.length, JSON.stringify(issues));
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
   console.log(fails ? `${fails} FAILURES` : 'ALL PASS');
   await b.close(); process.exit(fails ? 1 : 0);
 })();

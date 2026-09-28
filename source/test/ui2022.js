@@ -28,8 +28,12 @@ const { chromium } = require('playwright');
   const spec = await pg.textContent('#specBody');
   const style = `TS713${st.w}TSSC`;
   ck(`the specification lists the Sarto screen ${style} and 36"H end-of-run junctions TS736TEPJ (2022 p355, p402)`, spec.includes(style) && spec.includes('TS736TEPJ'), spec.slice(0, 200));
-  const link = await pg.evaluate(() => { const a = document.querySelector('#specBody a.pg'); return a ? a.getAttribute('href') : null; });
-  ck('guide page links open the June 2022 book', !!link && /^answer-2022-[12]\.pdf#page=\d+/.test(link), link);
+  // every page link opens the right file at the right sheet: 2022 pages 1-189 in answer-2022-1.pdf, 190-766 in answer-2022-2.pdf at page - 189;
+  // citations marked "2015 pNN" in answer-1.pdf (1-200) or answer-2.pdf (page - 200)
+  const links = await pg.evaluate(() => [...document.querySelectorAll('#specBody a.pg')].map(a => ({ href: a.getAttribute('href'), page: +a.dataset.page, ed: +a.dataset.edition })));
+  const want = (l) => l.ed === 2015 ? (l.page <= 200 ? `answer-1.pdf#page=${l.page}` : `answer-2.pdf#page=${l.page - 200}`) : (l.page <= 189 ? `answer-2022-1.pdf#page=${l.page}` : `answer-2022-2.pdf#page=${l.page - 189}`);
+  const wrong = links.filter(l => l.href !== want(l));
+  ck('guide page links open the June 2022 book at the printed page', links.length > 5 && links.some(l => l.ed === 2022) && !wrong.length, JSON.stringify(wrong.slice(0, 3)));
   // the QUERY rename: the header, a saved job named .query, and an old .answer job still opening
   ck('the app is titled QUERY Panel Planner', (await pg.title()) === 'QUERY Panel Planner' && /QUERY Panel Planner/.test(await pg.textContent('h1')));
   await pg.click('[data-stage="plan"]').catch(() => {}); await pg.waitForTimeout(200);
@@ -38,5 +42,5 @@ const { chromium } = require('playwright');
   const old = JSON.parse(saved); old.app = 'ANSWER'; old.name = 'Legacy job';
   await pg.setInputFiles('#fileIn', { name: 'legacy.answer', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(old)) }); await pg.waitForTimeout(400);
   ck('an old .answer job file still opens', await pg.evaluate(() => window.answerDebug.P().name === 'Legacy job' && window.answerDebug.P().app === 'QUERY'));
-  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) fails++;
-  console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); await b.close(); })();
+  console.log(errs.length ? errs.join('\n') : 'no page errors'); if (errs.length) process.exitCode = 1; if (errs.length) fails++;
+  console.log(fails ? fails + ' FAILURES' : 'ALL PASS'); if (fails) process.exitCode = 1; await b.close(); })();
